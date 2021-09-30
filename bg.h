@@ -63,11 +63,16 @@ static_assert(sizeof(s8) == sizeof(u8));
 #endif
 
 #if !defined(BG_ARR_BOUNDS_CHECK)
-    #if defined(BG_DEVELOPER) && BG_DEVELOPER == 1
-        #define BG_ARR_BOUNDS_CHECK 1
-    #elif
-        #define BG_ARR_BOUNDS_CHECK 0
+    #if defined(BG_DEVELOPER)
+        #if BG_DEVELOPER
+            #define BG_ARR_BOUNDS_CHECK 1
+        #endif
     #endif
+#endif
+
+
+#if !defined(BG_ARR_BOUNDS_CHECK)
+    #define BG_ARR_BOUNDS_CHECK 0
 #endif
 
 #define bg_sizeof(x)  (u64)sizeof(x)
@@ -194,10 +199,8 @@ pool_dealloc(PoolAllocator *alloc, void *mem) {
     }
 }
 
-
-
-#include "stb_ds.h"
-#include "stb_sprintf.h"
+// #include "stb_ds.h"
+// #include "stb_sprintf.h"
 
 
 #pragma warning(push)
@@ -296,7 +299,7 @@ arr__grow(Array<T> *arr, u64 new_cap) {
     arr->data = (T *)bg_realloc(arr->data, min_cap * bg_sizeof(arr[0]));
     arr->cap  = min_cap;
 
-    zero_memory(arr->data + arr->len, (arr->cap - arr->len) * bg_sizeof(arr[0]));
+    zero_memory(arr->data + arr->len, (arr->cap - arr->len) * bg_sizeof(arr->data[0]));
 }
 
 
@@ -317,7 +320,7 @@ arrputn(Array<T> *arr, T *values, u64 n) {
         arr__grow(arr, arr->len + n);
     }
     BG_ASSERT(arr->len + n <= arr->cap);
-    copy_memory(arr->data + arr->len, values, n * sizeof(arr[0]));
+    copy_memory(arr->data + arr->len, values, n * sizeof(arr->data[0]));
     arr->len += n;    
 }
 
@@ -1223,7 +1226,8 @@ get_filelist(char *dir) {
     Array<char*> result = {};
     arrreserve(&result, 20);
     
-    stbsp_snprintf(wildcard_dir, sizeof(wildcard_dir), "%s\\*", dir);
+    string_append(wildcard_dir, "\\*");
+
     WIN32_FIND_DATAA FDATA;
     HANDLE FileIterator = FindFirstFileA(wildcard_dir, &FDATA);
     
@@ -1241,10 +1245,9 @@ get_filelist(char *dir) {
             fn_len += dirlen + 4;
             
             char *fnbuffer = (char*)bg_calloc(fn_len, 1);
-            
-            s32 bw = (s32)stbsp_snprintf(fnbuffer, (s32)fn_len, "%s\\%s", dir, FDATA.cFileName);
-            BG_ASSERT(bw >= 0);
-            BG_ASSERT((u64)bw <= fn_len);
+
+            string_append(fnbuffer, "\\");
+            string_append(fnbuffer, FDATA.cFileName);
             
             arrput(&result, fnbuffer);
             
