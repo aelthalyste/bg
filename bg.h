@@ -50,7 +50,6 @@ static_assert(sizeof(s8) == sizeof(u8));
 #endif
 
 
-
 #if BG_SYSTEM_WINDOWS
     #define BG_DEBUGBREAK __debugbreak()
 #else 
@@ -63,6 +62,13 @@ static_assert(sizeof(s8) == sizeof(u8));
     #define BG_ASSERT(exp)
 #endif
 
+#if !defined(BG_ARR_BOUNDS_CHECK)
+    #if defined(BG_DEVELOPER) && BG_DEVELOPER == 1
+        #define BG_ARR_BOUNDS_CHECK 1
+    #elif
+        #define BG_ARR_BOUNDS_CHECK 0
+    #endif
+#endif
 
 #define bg_sizeof(x)  (u64)sizeof(x)
 #define bg_unused(x) ((void)(bg_sizeof(x)))
@@ -99,7 +105,7 @@ static_assert(sizeof(s8) == sizeof(u8));
 
 
 #define bg_malloc(n)        malloc((u64)(n))
-#define bg_realloc(p, sz)   realloc((u64)(p), (u64)(sz))
+#define bg_realloc(p, sz)   realloc((p), (u64)(sz))
 #define bg_free(p)          free((p))
 #define bg_calloc(c,s)      calloc((u64)(c), (u64)(s))
 
@@ -222,8 +228,13 @@ struct Array{
     T *data = 0;
     u64 len = 0;
     u64 cap = 0;
-    inline T& operator[](u64 i) {
-        return data[i];
+    inline T& operator[](u64 i) { 
+
+#if BG_ARR_BOUNDS_CHECK
+        BG_ASSERT(i < this->len);
+#endif
+
+        return this->data[i];
     }
 };
 
@@ -232,11 +243,11 @@ void
 arrinit(Array<T> *arr, u64 capacity);
 
 template<typename T> 
-T
+void
 arrput(Array<T> *arr, T val);
 
 template<typename T> 
-T* 
+void 
 arrputn(Array<T> *arr, T *values, u64 n);
 
 template<typename T> 
@@ -249,169 +260,88 @@ arrfree(Array<T> *arr);
 
 template<typename T> 
 void
-arrins(Array<T> *arr, u64 p, T b);
-
-template<typename T> 
-void
-arrinsn(Array<T> *arr, u64 p, u64 n);
-
-template<typename T> 
-T*
-arraddnptr(Array<T> *arr, u64 n);
-
-template<typename T> 
-u64
-arraddnindex(Array<T> *arr, u64 n);
-
-template<typename T> 
-void
-arrdel(Array<T> *arr, u64 n);
-
-template<typename T> 
-void
-arrdeln(Array<T> *arr, u64 p, u64 n);
-
-template<typename T> 
-void
-arrdelswap(Array<T> *arr, u64 p);
-
-template<typename T> 
-void
-arrsetlen(Array<T> *arr, u64 n);
-
-template<typename T> 
-void
-arrsetcap(Array<T> *arr, u64 n);
-
-template<typename T> 
-void
 arrreserve(Array<T> *arr, u64 n);
 
 template<typename T> 
 void
+arr__grow(Array<T> *arr, u64 new_cap);
+
+template<typename T> 
+void
 arrinit(Array<T> *arr, u64 cap) {
-    arr->data = 0;
-    stbds_arrsetcap(arr->data, cap);
-    arr->len = stbds_arrlenu(arr->data);
-    arr->cap = stbds_arrcap(arr->data);
+    BG_ASSERT(arr->len  == 0);
+    BG_ASSERT(arr->data == NULL);
+    arr->data = NULL;
+    arr__grow(arr, cap);
 }
 
 template<typename T> 
-T
+void
+arr__grow(Array<T> *arr, u64 new_cap) {
+    if (arr->cap > new_cap)
+        return;
+
+    u64 min_cap = 0;
+    if (arr->cap <= 8)
+        min_cap = 8;
+    if (min_cap < new_cap) {
+        if (min_cap * 2 + 4 < new_cap) {
+            min_cap = new_cap;         
+        }
+        else {
+            min_cap = min_cap * 2 + 4;
+        }
+    }
+
+    arr->data = (T *)bg_realloc(arr->data, min_cap * bg_sizeof(arr[0]));
+    arr->cap  = min_cap;
+
+    zero_memory(arr->data + arr->len, (arr->cap - arr->len) * bg_sizeof(arr[0]));
+}
+
+
+template<typename T> 
+void
 arrput(Array<T> *arr, T val) {
-    T result = stbds_arrput(arr->data, val);
-    arr->cap = stbds_arrcap(arr->data);
-    arr->len = stbds_arrlenu(arr->data);
-    return result;
+    if (arr->len == arr->cap) {
+        arr__grow(arr, arr->cap + 1);    
+    }
+    arr->data[arr->len] = val;
+    arr->len++;
 }
 
 template<typename T> 
-T*
+void
 arrputn(Array<T> *arr, T *values, u64 n) {
-    T *result = arraddnptr(arr, n);
-    copy_memory(result, values, n * sizeof(*arr->data));
-    arr->len = stbds_arrlenu(arr->data);
-    arr->cap = stbds_arrcap(arr->data);
-    return result;
+    if (arr->len + n >= arr->cap) {
+        arr__grow(arr, arr->len + n);
+    }
+    BG_ASSERT(arr->len + n <= arr->cap);
+    copy_memory(arr->data + arr->len, values, n * sizeof(arr[0]));
+    arr->len += n;    
 }
 
 template<typename T> 
 T
 arrpop(Array<T> *arr) {
-    T result = stbds_arrpop(arr->data);
-    arr->len = stbds_arrlenu(arr->data);
-    arr->cap = stbds_arrcap(arr->data);
-    return result;
+    if (arr->len > 0) {
+        return arr.data[--arr->len];
+    }
+    return {};
 }
 
 template<typename T> 
 void
 arrfree(Array<T> *arr) {
-    stbds_arrfree(arr->data);
+    bg_free(arr->data);
     arr->len = 0;
     arr->cap = 0;
 }
 
 template<typename T> 
 void
-arrins(Array<T> *arr, u64 p, T b) {
-    stbds_arrins(arr->data, p, b);
-    arr->len = stbds_arrlenu(arr->data);
-    arr->cap = stbds_arrcap(cap);
-}
-
-template<typename T> 
-void
-arrinsn(Array<T> *arr, u64 p, u64 n) {
-    stbds_arrinsn(arr->data, p, n);
-    arr->len = stbds_arrlenu(arr->data);
-    arr->cap = stbds_arrcap(arr->data);
-}
-
-template<typename T> 
-T*
-arraddnptr(Array<T> *arr, u64 n) {
-    T *result = stbds_arraddnptr(arr->data, n);
-    arr->len  = stbds_arrlenu(arr->data);
-    arr->cap  = stbds_arrcap(arr->data);
-    return result;
-}
-
-template<typename T> 
-u64
-arraddnindex(Array<T> *arr, u64 n) {
-    u64 result = stbds_arraddnindex(arr->data, n);
-    arr->len = stbds_arrlenu(arr->data);
-    arr->cap = stbds_arrcap(arr->data);
-    return result;
-}
-
-template<typename T> 
-void
-arrdel(Array<T> *arr, u64 n) {
-    stbds_arrdel(arr->data, n);
-    arr->len = stbds_arrlenu(arr->data);
-    arr->cap = stbds_arrcap(arr->data);
-}
-
-template<typename T> 
-void
-arrdeln(Array<T> *arr, u64 p, u64 n) {
-    stbds_arrdeln(arr->data, p, n);
-    arr->len = stbds_arrlenu(arr->data);
-    arr->cap = stbds_arrcap(arr->data);
-}
-
-template<typename T> 
-void
-arrdelswap(Array<T> *arr, u64 p) {
-    stbds_arrdelswap(arr, p);
-    arr->len = stbds_arrlenu(arr->data);
-    arr->cap = stbds_arrcap(arr->data);
-}
-
-template<typename T> 
-void
-arrsetlen(Array<T> *arr, u64 n) {
-    stbds_arrsetlen(arr->data, n);
-    arr->len = stbds_arrlenu(arr->data);
-    arr->cap = stbds_arrcap(arr->data);
-}
-
-template<typename T> 
-void
-arrsetcap(Array<T> *arr, u64 n) {
-    stbds_arrsetcap(arr->data, n);
-    arr->len = stbds_arrlenu(arr->data);
-    arr->cap = stbds_arrcap(arr->data);
-}
-
-template<typename T> 
-void
 arrreserve(Array<T> *arr, u64 n) {
-    if (n > arr->cap) {
-        arrsetcap(arr, n);
-    }
+    arr__grow(arr, n);    
 }
 
 template<typename T>
@@ -678,7 +608,7 @@ string_copy(wchar_t *dest, wchar_t *src) {
     }
 }
 
-static inline void
+static inline wchar_t *
 string_concanate(wchar_t *dest, u64 dest_max, wchar_t *lhs, u64 lhs_len, wchar_t *rhs, u64 rhs_len) {
     
     BG_ASSERT(dest);
@@ -687,14 +617,19 @@ string_concanate(wchar_t *dest, u64 dest_max, wchar_t *lhs, u64 lhs_len, wchar_t
     BG_ASSERT(lhs_len + rhs_len + 1 <= dest_max);
 
     if (dest) {
+        if (lhs_len + rhs_len > dest_max) {
+            LOG_ERROR("Unable to concanate %S and %S, buffer overrun!\n", lhs, rhs);
+            return dest;
+        }
         copy_memory(dest, lhs, lhs_len * 2);
         copy_memory(dest + lhs_len, rhs, rhs_len * 2);
         dest[lhs_len + rhs_len] = '\0';
     }
 
+    return dest;
 }
 
-static inline void
+static inline char *
 string_concanate(char *dest, u64 dest_max, char *lhs, u64 lhs_len, char *rhs, u64 rhs_len) {
     BG_ASSERT(dest);
     BG_ASSERT(lhs);
@@ -704,14 +639,24 @@ string_concanate(char *dest, u64 dest_max, char *lhs, u64 lhs_len, char *rhs, u6
     if (dest) {
         if (lhs_len + rhs_len > dest_max) {
             LOG_ERROR("Unable to concanate %s and %s, buffer overrun!\n", lhs, rhs);
-            return;
+            return dest;
         }
         copy_memory(dest, lhs, lhs_len);
         copy_memory(dest + lhs_len, rhs, rhs_len);
         dest[lhs_len + rhs_len] = '\0';
     }
+
+    return dest;
 }
 
+static inline void
+string_append(char *str, char *app, u64 strlen = 0, u64 applen = 0) {
+    if (strlen == 0) strlen = string_length(str);
+    if (applen == 0) applen = string_length(app);
+
+    copy_memory(str + strlen, app, applen);
+
+}
 
 static inline bool
 string_equal(char *s1, char *s2) {
@@ -1276,7 +1221,7 @@ get_filelist(char *dir) {
     BG_ASSERT(sizeof(wildcard_dir) > dirlen);
     
     Array<char*> result = {};
-    arrsetcap(&result, 20);
+    arrreserve(&result, 20);
     
     stbsp_snprintf(wildcard_dir, sizeof(wildcard_dir), "%s\\*", dir);
     WIN32_FIND_DATAA FDATA;
