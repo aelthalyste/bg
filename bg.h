@@ -26,43 +26,43 @@ constexpr u64 BG_U32_MAX = (0xffffffff);
 // platform specific includes
 
 #if defined(_WIN32) || defined(_WIN64)
-#ifndef BG_SYSTEM_WINDOWS
-#define BG_SYSTEM_WINDOWS 1
-#endif
+    #ifndef BG_SYSTEM_WINDOWS
+        #define BG_SYSTEM_WINDOWS 1
+    #endif
 #elif defined(__APPLE__) && defined(__MACH__)
-#ifndef BG_SYSTEM_OSX
-#define BG_SYSTEM_OSX 1
-#endif
+    #ifndef BG_SYSTEM_OSX
+        #define BG_SYSTEM_OSX 1
+    #endif
 #elif defined(__linux__)
-#ifndef BG_SYSTEM_LINUX
-#define BG_SYSTEM_LINUX 1
-#endif
+    #ifndef BG_SYSTEM_LINUX
+        #define BG_SYSTEM_LINUX 1
+    #endif
 #else
-#error unsupported platform
+    #error unsupported platform
 #endif
 
 
 #if defined(_MSC_VER) && !defined(__clang__)
-#define BG_COMPILER_MSVC 1
+    #define BG_COMPILER_MSVC 1
 #elif defined(__clang__)
-#define BG_COMPILER_CLANG 1
+    #define BG_COMPILER_CLANG 1
 #elif defined(__GNUC__)
-#define BG_COMPILER_GCC 1
+    #define BG_COMPILER_GCC 1
 #else
-#error UNKNOWN COMPILER
+    #error UNKNOWN COMPILER
 #endif
 
 
 #if BG_SYSTEM_WINDOWS
-#define BG_DEBUGBREAK __debugbreak()
+	#define BG_DEBUGBREAK __debugbreak()
 #else 
-#error  implement debugbreak
+	#error  implement debugbreak !!!
 #endif
 
 #if BG_DEVELOPER
-#define BG_ASSERT(exp) do{if (!(exp)) { BG_DEBUGBREAK; }} while (0);
+    #define BG_ASSERT(exp) do{if (!(exp)) { BG_DEBUGBREAK; }} while (0);
 #else
-#define BG_ASSERT(exp)
+    #define BG_ASSERT(exp) 
 #endif
 
 #if !defined(BG_ARR_BOUNDS_CHECK)
@@ -128,20 +128,20 @@ constexpr u64 BG_U32_MAX = (0xffffffff);
 
 
 // POOL
-struct PoolEntry {
-    PoolEntry *next;
+struct Pool_Entry {
+    Pool_Entry *next;
 };
 
 
-struct PoolAllocator {
+struct Pool_Allocator {
     void *memory;
-    PoolEntry *entries;
+    Pool_Entry *entries;
     u64 pool_size;
     u64 entry_count;
 };
 
 
-static inline PoolAllocator
+static inline Pool_Allocator
 init_pool_allocator(void *mem, u64 msize, u64 psize) {
 
     if (mem == 0) return {};
@@ -151,26 +151,26 @@ init_pool_allocator(void *mem, u64 msize, u64 psize) {
     BG_ASSERT(msize > 0);
     BG_ASSERT(psize > 0);
 
-    PoolAllocator result ={};
+    Pool_Allocator result ={};
     result.memory          = mem;
     result.pool_size       = psize;
     result.entry_count     = msize / psize;
 
     for (u64 i = 0; i < (u64)result.entry_count - 1; i++) {
-        PoolEntry *entry = (PoolEntry *)((char *)mem + (psize * i));
-        entry->next        = (PoolEntry *)((char *)entry + psize);
+        Pool_Entry *entry = (Pool_Entry *)((char *)mem + (psize * i));
+        entry->next        = (Pool_Entry *)((char *)entry + psize);
     }
 
-    PoolEntry *entry = (PoolEntry *)((char *)mem + (psize * (result.entry_count - 1)));
+    Pool_Entry *entry = (Pool_Entry *)((char *)mem + (psize * (result.entry_count - 1)));
 
     entry->next     = 0;
-    result.entries = (PoolEntry *)mem;
+    result.entries = (Pool_Entry *)mem;
 
     return result;
 }
 
 static inline void *
-pool_allocate(PoolAllocator *alloc) {
+pool_allocate(Pool_Allocator *alloc) {
     if (alloc->entries == 0) {
         return 0;
     }
@@ -180,22 +180,22 @@ pool_allocate(PoolAllocator *alloc) {
 }
 
 static inline void
-pool_dealloc(PoolAllocator *alloc, void *mem) {
+pool_dealloc(Pool_Allocator *alloc, void *mem) {
     if (mem == 0) {
         return;
     }
 
-    PoolEntry *e = alloc->entries;
+    Pool_Entry *e = alloc->entries;
     // edge case
     zero_memory(mem, alloc->pool_size);
     if (alloc->entries == 0) {
-        alloc->entries = (PoolEntry *)mem;
+        alloc->entries = (Pool_Entry *)mem;
         return;
     }
 
     while (1) {
         if (e->next == 0) {
-            e->next = (PoolEntry *)mem;
+            e->next = (Pool_Entry *)mem;
             break;
         }
         e = e->next;
@@ -386,40 +386,54 @@ slice_from_array(Slice<T> *slice, Array<T> const &arr) {
 #include <windows.h>
 #endif
 
-struct BgMutex {
+struct Mutex {
 #if BG_SYSTEM_WINDOWS
     CRITICAL_SECTION critical_section;
 #else
-#error not implemented
+    #error not implemented
 #endif
 };
 #endif
 
 static inline void
-lock_mutex(BgMutex *mutex) {
+lock_mutex(Mutex *mutex) {
     bg_unused(mutex);
 }
 
 static inline void
-unlock_mutex(BgMutex *mutex) {
+unlock_mutex(Mutex *mutex) {
     bg_unused(mutex);
 }
 
 
 
 // FILE IO
-struct FileRead {
+struct File_Read {
     void *data;
     u64 len;
 };
 
-struct BgFile {
+struct File {
 #if BG_SYSTEM_WINDOWS
     HANDLE     handle;
-    OVERLAPPED overlapped;
 #else
-#error implement
+	#error implement
 #endif
+	s64 cached_fp = 0;
+};
+
+struct File_Async_Context {
+#if BG_SYSTEM_WINDOWS
+	OVERLAPPED overlapped;
+#else
+	#error implement
+#endif
+};
+
+enum IO_Result {
+	IO_Result_Error = 0,
+	IO_Result_Done = 1,
+	IO_Result_Pending = 2
 };
 
 #if BG_SYSTEM_WINDOWS
@@ -427,7 +441,7 @@ struct BgFile {
 #endif
 
 static inline bool
-is_file_handle_valid(BgFile *file) {
+is_file_handle_valid(File *file) {
 #if BG_SYSTEM_WINDOWS
     // INVALID_HANDLE_VALUE definition copypasta from microsoft headers.
     return file->handle != INVALID_HANDLE_VALUE;
@@ -437,19 +451,37 @@ is_file_handle_valid(BgFile *file) {
 }
 
 s64
-get_fp(BgFile *file);
+get_fp(File *file);
 
 s64
-set_fp(BgFile *file, s64 offset);
+set_fp(File *file, s64 offset);
+
+
+IO_Result
+check_file_async_io(File *file, File_Async_Context *async);
 
 bool
-write_file(BgFile *file, void *data, u64 n);
+wait_io_completion(File *file, File_Async_Context *async_ctx);
 
 bool
-read_file(BgFile *file, void *data, u64 n);
+write_file(File *file, void *data, u64 n);
+
+File_Async_Context
+write_file_async(File *file, void *data, u64 n);
+
+IO_Result
+write__file(File *file, void *data, u64 n, File_Async_Context *async_context);
+
 
 bool
-read__file(BgFile *file, void *buffer, u64 n, bool wait_for_completion);
+read_file(File *file, void *data, u64 n);
+
+File_Async_Context
+read_file_async(File *file, void *data, u64 n);
+
+IO_Result
+read__file(File *file, void *buffer, u64 n, File_Async_Context *async);
+
 
 s64
 get_file_size(char *fn);
@@ -457,13 +489,13 @@ get_file_size(char *fn);
 s64
 get_file_size(wchar_t *fn);
 
-BgFile
+File
 open_file(char *fn);
 
-BgFile
+File
 open_file(wchar_t *fn);
 
-BgFile
+File
 create_file(char *fn);
 
 bool
@@ -473,13 +505,13 @@ bool
 delete_file(wchar_t *fn);
 
 void
-close_file(BgFile *file);
+close_file(File *file);
 
-FileRead
+File_Read
 read_file_all(char *fn);
 
 void
-free_file_read(FileRead *fr);
+free_file_read(File_Read *fr);
 
 bool
 read_filen(char *fn, void *data, u64 n);
@@ -509,6 +541,14 @@ crc32(void *memory, u64 size);
     BG STRING
 */
 
+// some parts of the code deals with very small strings, using stack or temporary arena fits for their usage
+u64
+memory_needed_for_conversion(char *str, u64 slen = 0);
+
+u64
+memory_needed_for_conversion(wchar_t *str, u64 slen = 0);
+
+
 // @@NOTE(Batuhan) those two (for now), needs external functions to operate, we 
 // dont want to pull weight of compilation to everywhere 
 wchar_t *
@@ -516,6 +556,16 @@ multibyte_to_widestr(char *s);
 
 char *
 widestr_to_multibyte(wchar_t *ws);
+
+
+// those two returns null if conversion can't happen(result can not fit given buffer), caller can give more memory or use memory_needed_for_conversion to determine
+// exact memory.
+char *
+widestr_to_multibyte(wchar_t *ws, char *result, u64 max_ch); 
+
+wchar_t *
+multibyte_to_widestr(char *s, wchar_t *result, u64 max_ch); 
+
 
 
 static inline void
@@ -918,6 +968,21 @@ crc32(void *data, u64 len) {
     return ~result;
 }
 
+u64
+memory_needed_for_conversion(char *str, u64 slen) {
+    if (slen == 0) slen = string_length(str) + 1;
+    int chneeded = MultiByteToWideChar(CP_UTF8, 0, (LPCCH)str, slen, NULL, NULL);
+    BG_ASSERT(chneeded);
+    return chneeded * 2;
+}
+
+u64
+memory_needed_for_conversion(wchar_t *str, u64 slen){
+    if (slen == 0) slen = string_length(str) + 1;
+    int chneeded = WideCharToMultiByte(CP_UTF8, 0, str, slen, NULL, NULL, NULL, NULL);
+    return chneeded;
+}
+
 
 wchar_t *
 multibyte_to_widestr(char *s) {
@@ -935,6 +1000,7 @@ multibyte_to_widestr(char *s) {
 
     int wr = MultiByteToWideChar(CP_UTF8, 0, (LPCCH)s, slen, result, chneeded);
     BG_ASSERT(wr == chneeded);
+    bg_unused(wr); // only used in debug build, nothing to worry about 
 #else
 #error not implemented
 #endif
@@ -955,6 +1021,7 @@ widestr_to_multibyte(wchar_t *ws) {
 
     int wr = WideCharToMultiByte(CP_UTF8, 0, ws, wslen, (LPSTR)result, chneeded, NULL, NULL);
     BG_ASSERT(wr <= chneeded);
+    bg_unused(wr); // used only in debug build, nothing to worry about
 #else
 #error not implemented
 #endif
@@ -962,9 +1029,32 @@ widestr_to_multibyte(wchar_t *ws) {
     return result;
 }
 
+char *
+widestr_to_multibyte(wchar_t *ws, char *result, u64 max_size) {
+    u64 wslen = string_length(ws) + 1; // for null termination
+    u64 memneeded = memory_needed_for_conversion(ws, wslen);
+    if (memneeded > max_size)
+        return NULL;
+
+    int bw = WideCharToMultiByte(CP_UTF8, 0, ws, wslen, (LPSTR)result, max_size, NULL, NULL);
+    return ((u64)bw <= max_size ? result : NULL);
+}
+
+wchar_t *
+multibyte_to_widestr(char *s, wchar_t *result, u64 max_size) {
+    u64 slen = string_length(s) + 1; // for null termination
+    u64 memneeded = memory_needed_for_conversion(s, slen);
+    if (memneeded > max_size) 
+        return NULL;
+
+    int bw = MultiByteToWideChar(CP_UTF8, 0, (LPCCH)s, slen, result, max_size / 2);
+    return ((u64)bw*2 <= max_size ? result : NULL); 
+}
 
 s64
-get_fp(BgFile *file) {
+get_fp(File *file) {
+	//return file->cached_fp;
+#if 1
 #if BG_SYSTEM_WINDOWS
     LARGE_INTEGER start  ={};
     LARGE_INTEGER result ={};
@@ -978,10 +1068,12 @@ get_fp(BgFile *file) {
 #else
 #error not implemented
 #endif
+#endif
+
 }
 
 s64
-set_fp(BgFile *file, s64 offset) {
+set_fp(File *file, s64 offset) {
     file->cached_fp = offset;
 #if BG_SYSTEM_WINDOWS
     LARGE_INTEGER start ={};
@@ -999,123 +1091,217 @@ set_fp(BgFile *file, s64 offset) {
 }
 
 bool
-write_file(BgFile *file, void *data, u64 n) {
+write_file(File *file, void *data, u64 n) {
+
+    File_Async_Context context = {};
+    auto io_result = write__file(file, data, n, &context);
+
+    if (io_result == IO_Result_Pending) {
+        return wait_io_completion(file, &context);
+    }
+
+    return io_result == IO_Result_Done;
+}
+
+File_Async_Context
+write_file_async(File *file, void *data, u64 n) {
+    File_Async_Context context = {};
+    write__file(file, data, n, &context);
+    return context;
+}
+
+IO_Result
+write__file(File *file, void *data, u64 n, File_Async_Context *async_context) {
 #if BG_SYSTEM_WINDOWS
     BG_ASSERT(n < BG_U32_MAX);
     if (n > BG_U32_MAX) {
         LOG_WARNING("Reading bigger than 4GB is not supported yet\n");
-        return false;
+        return IO_Result_Error;
     }
     if (n == 0) {
-        return true;
+        return IO_Result_Done;
     }
-    DWORD br = 0;
-    if (!WriteFile(file->handle, data, n, &br, 0) || n != br) {
-        LOG_ERROR("Unable to write n(%llu) bytes to file, instead written %lu, err %lu\n", n, br, GetLastError());
-        return false;
+
+    {
+        auto fp = get_fp(file);
+        async_context->overlapped.Offset     = (fp & (0xffffffff));
+        async_context->overlapped.OffsetHigh = (fp >> 32);
+   	}
+
+    auto writefile_result = WriteFile(file->handle, data, n, NULL, &async_context->overlapped);
+	
+   	if (writefile_result == TRUE) {
+        file->cached_fp += n;
+    	return IO_Result_Done;
     }
-    return true;
+	
+    auto errcode = GetLastError();
+
+	BG_ASSERT(writefile_result == FALSE && errcode == ERROR_IO_PENDING);
+	if (errcode != ERROR_IO_PENDING) {
+		LOG_ERROR("Writefile returned some weird error code %ld\n", errcode);
+		// @NOTE assuming internal error did not cause file pointer to move.
+        return IO_Result_Error;
+	}
+
+
+    file->cached_fp += n;
+	return IO_Result_Done;
+
 #else
 #error not implemented
 #endif
+
 }
 
-bool
-read_file(BgFile *file, void *buffer, u64 n) {
-    return read__file(file, buffer, n, true);
-}
 
 bool
-read_file_async(BgFile *file, void *buffer, u64 n) {
-    return read__file(file, buffer, n, false);
+read_file(File *file, void *buffer, u64 n) {
+    File_Async_Context context = {};
+    auto io_result = read__file(file, buffer, n, &context);
+
+    if (io_result == IO_Result_Pending) {
+        return wait_io_completion(file, &context);
+    }
+
+    return io_result == IO_Result_Done;
 }
 
+File_Async_Context
+read_file_async(File *file, void *buffer, u64 n) {
+    File_Async_Context context = {};
+    read__file(file, buffer, n, &context); 
+    return context;
+}
+
+// must return true, false indicating something bad happened, error!!
 bool
-read__file(BgFile *file, void *buffer, u64 n, bool wait_for_completion) {
+wait_io_completion(File *file, File_Async_Context *async_ctx) {
+#if BG_SYSTEM_WINDOWS
+    DWORD bytes_transferred = 0;
+    auto winapi_result = GetOverlappedResultEx(file->handle, &async_ctx->overlapped, &bytes_transferred, INFINITE, FALSE);
+    BG_ASSERT(winapi_result != 0);
+    if (winapi_result == 0) {
+        LOG_WARNING("IO completion wait failed with result %ld\n", GetLastError());
+        return false;
+    }
+    else {
+        // success
+        return true;
+    }
+#else
+    #error implement
+#endif
+}
+
+// returns true if io completed, for big io stuff it usually returns false.
+IO_Result
+read__file(File *file, void *buffer, u64 n, File_Async_Context *async_context) {
+
 #if BG_SYSTEM_WINDOWS
 
     BG_ASSERT(n < BG_U32_MAX);
     if (n > BG_U32_MAX) {
         LOG_WARNING("Reading bigger than 4GB is not supported yet\n");
-        return false;
+        return IO_Result_Error;
     }
 
 
     BG_ASSERT(file->cached_fp == get_fp(file));
-
-    file->overlapped.Offset     = (file->cached_fp & (0xffffffff));
-    file->overlapped.OffsetHigh = (file->cached_fp >> 32);
-
-    DWORD br = 0;
-    auto readfile_result = ReadFile(file->handle, buffer, n, NULL, file->overlapped);
-
-    if () {
-        LOG_ERROR("Unable to read n(%llu) bytes from file, instead read %lu, err %lu\n", n, br, GetLastError());
-        return false;
+    {
+        auto fp = get_fp(file);
+        async_context->overlapped.Offset     = (fp & (0xffffffff));
+        async_context->overlapped.OffsetHigh = (fp >> 32);
     }
+    auto readfile_result = ReadFile(file->handle, buffer, n, NULL, &async_context->overlapped);
 
-    if (wait_for_completion) {
-        DWORD bytes_transferred = 0;
-        auto winapi_result = GetOverlappedResultEx(file->handle, &file->overlapped, &bytes_transferred, INFINITE, FALSE);
-        BG_ASSERT(winapi_result != 0);
-        if (winapi_result == 0) {
-            // error
-        }
-        else {
-            // success
-        }
+   	// @NOTE(batuhan): Will we ever hit that?
+    if (readfile_result == TRUE) {
+    	return IO_Result_Done;
     }
-    else {
-        return true;
-    }
+	
+    auto errcode = GetLastError();
+	BG_ASSERT(readfile_result == FALSE && errcode == ERROR_IO_PENDING);
+	if (errcode != ERROR_IO_PENDING) {
+		LOG_ERROR("Readfile returned some weird error code %ld\n", errcode);
+		return IO_Result_Error;
+	}
+	
+    file->cached_fp += n;
+    return IO_Result_Pending;
 
-    return true;
 #else
 #error not implemented
 #endif
 }
 
-
-#if 0
-bool
-read_file_async(BgFile *file, void *buffer, u32 n) {
-}
-
-bool
-check_file_async_io(BgFile *file) {
-
-}
-
-bool
-wait_file_async_ms(u64 ms) {
-
-}
+IO_Result
+check_file_async_io(File *file, File_Async_Context *async_context) {
+#if BG_SYSTEM_WINDOWS
+    DWORD bytes_transferred = 0;
+	auto winapi_result = GetOverlappedResultEx(file->handle, &async_context->overlapped, &bytes_transferred, 0, FALSE);
+	if (winapi_result == 0) {
+		auto errcode = GetLastError();
+		if (errcode == ERROR_IO_INCOMPLETE) {
+			// we are ok, io is not ready yet.
+			return IO_Result_Pending;
+		}
+		else {
+			if (errcode == ERROR_HANDLE_EOF) {
+				LOG_WARNING("Read operation goes beyond EOF, this isn't an error\n");
+				return IO_Result_Done;
+			}
+			else {
+				LOG_WARNING("Unknown error code from getoverlappedresultex, %ld\n", errcode);
+				return IO_Result_Error;
+			}
+		}
+		
+	}
+    return IO_Result_Done;
+#else
+    #error implement
 #endif
+}
 
-BgFile
+
+
+File
 open_file(char *fn) {
 #if BG_SYSTEM_WINDOWS
+    u64 slen = string_length(fn);
+    
+    // if file name is small enough, dont heap allocate.
+    if (slen < 500) {
+        wchar_t wfn[500];
+        wchar_t *conversion_result = multibyte_to_widestr(fn, wfn, sizeof(wfn));
+        if (NULL != conversion_result) {
+            return open_file(wfn);
+        }
+        // free to fallthrough
+    }
+
     wchar_t *wfn = multibyte_to_widestr(fn);
-    BgFile result = open_file(wfn);
+    File result = open_file(wfn);
     bg_free(wfn);
     return result;
 #else
-#error not implemented
+    #error not implemented
 #endif
 }
 
-BgFile
+File
 open_file(wchar_t *fn) {
 #if BG_SYSTEM_WINDOWS
     HANDLE file = CreateFileW(fn, GENERIC_WRITE | GENERIC_READ, 0, 0, OPEN_EXISTING, 0, 0);
     if (file == INVALID_HANDLE_VALUE) {
         LOG_ERROR("Unable to open existing file %S, err %lu\n", fn, GetLastError());
     }
-    BgFile result ={};
+    File result ={};
     result.handle = file;
     return result;
 #else
-#error not implemented
+    #error not implemented
 #endif        
 }
 
@@ -1128,7 +1314,7 @@ delete_file(char *fn) {
     }
     return winapi_result != 0;
 #else
-#error implement
+    #error implement
 #endif
 }
 
@@ -1141,12 +1327,23 @@ delete_file(wchar_t *fn) {
     }
     return winapi_result != 0;
 #else
-#error implement
+    #error implement
 #endif
 }
 
 s64
 get_file_size(char *fn) {
+    
+    u64 slen = string_length(fn);
+    if (slen < 500) {
+        wchar_t wfn[500];
+        zero_memory(wfn, sizeof(wfn));
+        auto conversion_result = multibyte_to_widestr(fn, wfn, sizeof(wfn));
+        if (NULL != conversion_result) {
+            return get_file_size(wfn);
+        }
+    }
+
     auto wfn = multibyte_to_widestr(fn);
     s64 result = get_file_size(wfn);
     bg_free(wfn);
@@ -1163,6 +1360,7 @@ get_file_size(wchar_t *fn) {
         LARGE_INTEGER fsli ={};
         BOOL winapiresult  = GetFileSizeEx(file, &fsli);
         BG_ASSERT(winapiresult);
+        bg_unused(winapiresult); // used in debug build. its ok
         result = fsli.QuadPart;
     }
     else {
@@ -1172,20 +1370,19 @@ get_file_size(wchar_t *fn) {
     CloseHandle(file);
     return result;
 #else
-#error implement
+    #error implement
 #endif
 }
 
-BgFile
+File
 create_file(char *fn) {
 #if BG_SYSTEM_WINDOWS
-    HANDLE file = CreateFileA(fn, GENERIC_WRITE | GENERIC_READ, 0, 0, CREATE_NEW, 0, 0);
+    HANDLE file = CreateFileA(fn, GENERIC_WRITE | GENERIC_READ, 0, 0, CREATE_NEW, FILE_FLAG_OVERLAPPED, 0);
     if (file == INVALID_HANDLE_VALUE) {
         LOG_ERROR("Unable to create existing file %s, err %lu\n", fn, GetLastError());
     }
-    BgFile result ={};
+    File result ={};
     result.handle     = file;
-    result.overlapped ={};
     return result;
 #else
 #error not implemented
@@ -1193,23 +1390,23 @@ create_file(char *fn) {
 }
 
 void
-close_file(BgFile *file) {
+close_file(File *file) {
 #if BG_SYSTEM_WINDOWS
     CloseHandle(file->handle);
     file->handle = INVALID_HANDLE_VALUE;
     // @TODO cancel all pending io's via CancelIO
 #else
-#error not implemented
+    #error not implemented
 #endif
 }
 
 
-FileRead
+File_Read
 read_file_all(char *fn) {
 #if BG_SYSTEM_WINDOWS
 
-    FileRead result ={};
-    HANDLE file = CreateFileA(fn, GENERIC_READ, 0, 0, OPEN_EXISTING, 0, 0);
+    File_Read result ={};
+    HANDLE file = CreateFileA(fn, GENERIC_READ, 0, 0, OPEN_EXISTING, FILE_FLAG_OVERLAPPED, 0);
     defer({ CloseHandle(file); });
 
     BG_ASSERT(file != INVALID_HANDLE_VALUE);
@@ -1244,7 +1441,7 @@ read_file_all(char *fn) {
 }
 
 void
-free_file_read(FileRead *fr) {
+free_file_read(File_Read *fr) {
     bg_free(fr->data);
     fr->len = 0;
     fr->data = 0;
