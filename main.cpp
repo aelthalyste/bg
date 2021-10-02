@@ -2,14 +2,19 @@
 #include <stdio.h>
 #include <windows.h>
 
-#define IO_TEST_COUNT 50
-#define BUF_SIZE      1024 * 1024 * 128
+#include <thread>
+#include <vector>
+#include <iostream>
 
+
+#define IO_TEST_COUNT 40
+#define BUF_SIZE      1024 * 1024 * 32
+#define THREAD_COUNT  8
 
 u64 clocks_per_sec;
 
 u64
-clock() {
+bg_clock() {
 	LARGE_INTEGER li = {};
 	QueryPerformanceCounter(&li);
 	return li.QuadPart;
@@ -17,14 +22,21 @@ clock() {
 
 double
 to_ms(u64 ticks) {
-	return (double)ticks/(double)clocks_per_sec;
+	return 1000.0 * ((double)ticks/(double)clocks_per_sec);
 }
 
 u64 
 do_async_thing() {
 
-	delete_file("async_file");
-	File file = create_file("async_file");
+	
+	u64 id = bg_clock();
+	char fn[100];
+	snprintf(fn, sizeof(fn), "async_file%llu", id);
+
+	delete_file(fn);
+	File file = create_file(fn);
+	defer({delete_file(fn);});
+
 	BG_ASSERT(is_file_handle_valid(&file));
 	
 	u64 bfsize = BUF_SIZE;
@@ -40,14 +52,16 @@ do_async_thing() {
 	for (u64 i = 0; i < IO_TEST_COUNT; i++) {
 		u64 s = 0;
 		u64 e = 0;
+
 		
-		s = clock();
+		s = bg_clock();
+		set_fp(&file, i * Megabyte(1));
 		auto ctx = write_file_async(&file, bf, bfsize);
-		e = clock();
+		e = bg_clock();
 		total_issue += (e - s);
 
 		wait_io_completion(&file, &ctx);
-		e = clock();
+		e = bg_clock();
 		total_wait += (e - s);
 	}
 
@@ -60,8 +74,13 @@ do_async_thing() {
 
 u64 
 do_sync_thing() {
-	delete_file("sync_file");
-	auto file = create_file("sync_file");
+	u64 id = bg_clock();
+	char fn[100];
+	snprintf(fn, sizeof(fn), "async_file%llu", id);
+
+	delete_file(fn);
+	File file = create_file(fn);
+	defer({delete_file(fn);});
 	BG_ASSERT(is_file_handle_valid(&file));
 	
 	u64 bfsize = BUF_SIZE;
@@ -72,11 +91,12 @@ do_sync_thing() {
 		((u64*)bf)[i] = i * 23 - 535;
 	}
 
-	u64 start = clock();
+	u64 start = bg_clock();
 	for (u64 i = 0; i < IO_TEST_COUNT; i++) {
+		set_fp(&file, i * Megabyte(1));
 		write_file(&file, bf, bfsize);
 	}
-	u64 end = clock();
+	u64 end = bg_clock();
 
 	LOG_INFO("sync io ms : %.5f\n", to_ms(end - start));
 	close_file(&file);
@@ -109,14 +129,24 @@ int main() {
 	LOG_INFO("%p %p %p\n", r4, r5, r6);
 	LOG_INFO("%S %S %S\n", r4, r5, r6);
 
+	std::string a;
+	std::cin>>a;
+
 	LARGE_INTEGER li;
 	QueryPerformanceFrequency(&li);
 	clocks_per_sec = li.QuadPart;
 
-	for (u64 i =0; i<4; i++) {
-		do_async_thing();
-		do_sync_thing();
+	std::vector<std::thread> thread_vector;
+	thread_vector.reserve(100);
 
+	for (u64 i =0; i<THREAD_COUNT; i++) {
+		thread_vector.emplace_back(std::thread(do_async_thing));
+		thread_vector.emplace_back(std::thread(do_sync_thing));
+		Sleep(50);
+	}
+
+	for (u64 i = 0; i<thread_vector.size(); i++) {
+		thread_vector[i].join();
 	}
 
 	printf("DONE!!! \n");

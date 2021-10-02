@@ -422,7 +422,7 @@ struct File {
 	s64 cached_fp = 0;
 };
 
-struct File_Async_Context {
+struct Async_IO_Handle {
 #if BG_SYSTEM_WINDOWS
 	OVERLAPPED overlapped;
 #else
@@ -458,29 +458,29 @@ set_fp(File *file, s64 offset);
 
 
 IO_Result
-check_file_async_io(File *file, File_Async_Context *async);
+check_file_async_io(File *file, Async_IO_Handle *async);
 
 bool
-wait_io_completion(File *file, File_Async_Context *async_ctx);
+wait_io_completion(File *file, Async_IO_Handle *async_ctx);
 
 bool
 write_file(File *file, void *data, u64 n);
 
-File_Async_Context
+Async_IO_Handle
 write_file_async(File *file, void *data, u64 n);
 
 IO_Result
-write__file(File *file, void *data, u64 n, File_Async_Context *async_context);
+write__file(File *file, void *data, u64 n, Async_IO_Handle *async_handle);
 
 
 bool
 read_file(File *file, void *data, u64 n);
 
-File_Async_Context
+Async_IO_Handle
 read_file_async(File *file, void *data, u64 n);
 
 IO_Result
-read__file(File *file, void *buffer, u64 n, File_Async_Context *async);
+read__file(File *file, void *buffer, u64 n, Async_IO_Handle *async);
 
 
 s64
@@ -1093,25 +1093,25 @@ set_fp(File *file, s64 offset) {
 bool
 write_file(File *file, void *data, u64 n) {
 
-    File_Async_Context context = {};
-    auto io_result = write__file(file, data, n, &context);
+    Async_IO_Handle handle = {};
+    auto io_result = write__file(file, data, n, &handle);
 
     if (io_result == IO_Result_Pending) {
-        return wait_io_completion(file, &context);
+        return wait_io_completion(file, &handle);
     }
 
     return io_result == IO_Result_Done;
 }
 
-File_Async_Context
+Async_IO_Handle
 write_file_async(File *file, void *data, u64 n) {
-    File_Async_Context context = {};
-    write__file(file, data, n, &context);
-    return context;
+    Async_IO_Handle handle = {};
+    write__file(file, data, n, &handle);
+    return handle;
 }
 
 IO_Result
-write__file(File *file, void *data, u64 n, File_Async_Context *async_context) {
+write__file(File *file, void *data, u64 n, Async_IO_Handle *async_handle) {
 #if BG_SYSTEM_WINDOWS
     BG_ASSERT(n < BG_U32_MAX);
     if (n > BG_U32_MAX) {
@@ -1122,13 +1122,14 @@ write__file(File *file, void *data, u64 n, File_Async_Context *async_context) {
         return IO_Result_Done;
     }
 
+
     {
         auto fp = get_fp(file);
-        async_context->overlapped.Offset     = (fp & (0xffffffff));
-        async_context->overlapped.OffsetHigh = (fp >> 32);
+        async_handle->overlapped.Offset     = (fp & (0xffffffff));
+        async_handle->overlapped.OffsetHigh = (fp >> 32);
    	}
 
-    auto writefile_result = WriteFile(file->handle, data, n, NULL, &async_context->overlapped);
+    auto writefile_result = WriteFile(file->handle, data, n, NULL, &async_handle->overlapped);
 	
    	if (writefile_result == TRUE) {
         file->cached_fp += n;
@@ -1144,7 +1145,6 @@ write__file(File *file, void *data, u64 n, File_Async_Context *async_context) {
         return IO_Result_Error;
 	}
 
-
     file->cached_fp += n;
 	return IO_Result_Done;
 
@@ -1157,26 +1157,26 @@ write__file(File *file, void *data, u64 n, File_Async_Context *async_context) {
 
 bool
 read_file(File *file, void *buffer, u64 n) {
-    File_Async_Context context = {};
-    auto io_result = read__file(file, buffer, n, &context);
+    Async_IO_Handle handle = {};
+    auto io_result = read__file(file, buffer, n, &handle);
 
     if (io_result == IO_Result_Pending) {
-        return wait_io_completion(file, &context);
+        return wait_io_completion(file, &handle);
     }
 
     return io_result == IO_Result_Done;
 }
 
-File_Async_Context
+Async_IO_Handle
 read_file_async(File *file, void *buffer, u64 n) {
-    File_Async_Context context = {};
-    read__file(file, buffer, n, &context); 
-    return context;
+    Async_IO_Handle handle = {};
+    read__file(file, buffer, n, &handle); 
+    return handle;
 }
 
 // must return true, false indicating something bad happened, error!!
 bool
-wait_io_completion(File *file, File_Async_Context *async_ctx) {
+wait_io_completion(File *file, Async_IO_Handle *async_ctx) {
 #if BG_SYSTEM_WINDOWS
     DWORD bytes_transferred = 0;
     auto winapi_result = GetOverlappedResultEx(file->handle, &async_ctx->overlapped, &bytes_transferred, INFINITE, FALSE);
@@ -1196,7 +1196,7 @@ wait_io_completion(File *file, File_Async_Context *async_ctx) {
 
 // returns true if io completed, for big io stuff it usually returns false.
 IO_Result
-read__file(File *file, void *buffer, u64 n, File_Async_Context *async_context) {
+read__file(File *file, void *buffer, u64 n, Async_IO_Handle *async_handle) {
 
 #if BG_SYSTEM_WINDOWS
 
@@ -1210,10 +1210,10 @@ read__file(File *file, void *buffer, u64 n, File_Async_Context *async_context) {
     BG_ASSERT(file->cached_fp == get_fp(file));
     {
         auto fp = get_fp(file);
-        async_context->overlapped.Offset     = (fp & (0xffffffff));
-        async_context->overlapped.OffsetHigh = (fp >> 32);
+        async_handle->overlapped.Offset     = (fp & (0xffffffff));
+        async_handle->overlapped.OffsetHigh = (fp >> 32);
     }
-    auto readfile_result = ReadFile(file->handle, buffer, n, NULL, &async_context->overlapped);
+    auto readfile_result = ReadFile(file->handle, buffer, n, NULL, &async_handle->overlapped);
 
    	// @NOTE(batuhan): Will we ever hit that?
     if (readfile_result == TRUE) {
@@ -1236,10 +1236,10 @@ read__file(File *file, void *buffer, u64 n, File_Async_Context *async_context) {
 }
 
 IO_Result
-check_file_async_io(File *file, File_Async_Context *async_context) {
+check_file_async_io(File *file, Async_IO_Handle *async_handle) {
 #if BG_SYSTEM_WINDOWS
     DWORD bytes_transferred = 0;
-	auto winapi_result = GetOverlappedResultEx(file->handle, &async_context->overlapped, &bytes_transferred, 0, FALSE);
+	auto winapi_result = GetOverlappedResultEx(file->handle, &async_handle->overlapped, &bytes_transferred, 0, FALSE);
 	if (winapi_result == 0) {
 		auto errcode = GetLastError();
 		if (errcode == ERROR_IO_INCOMPLETE) {
