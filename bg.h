@@ -20,59 +20,62 @@ typedef   int8_t u8;
 static_assert(sizeof(s8) == sizeof(u8));
 
 
+constexpr u64 BG_U32_MAX = (0xffffffff);
+
+
 // platform specific includes
 
 #if defined(_WIN32) || defined(_WIN64)
-    #ifndef BG_SYSTEM_WINDOWS
-        #define BG_SYSTEM_WINDOWS 1
-    #endif
+#ifndef BG_SYSTEM_WINDOWS
+#define BG_SYSTEM_WINDOWS 1
+#endif
 #elif defined(__APPLE__) && defined(__MACH__)
-    #ifndef BG_SYSTEM_OSX
-        #define BG_SYSTEM_OSX 1
-    #endif
+#ifndef BG_SYSTEM_OSX
+#define BG_SYSTEM_OSX 1
+#endif
 #elif defined(__linux__)
-    #ifndef BG_SYSTEM_LINUX
-        #define BG_SYSTEM_LINUX 1
-    #endif
+#ifndef BG_SYSTEM_LINUX
+#define BG_SYSTEM_LINUX 1
+#endif
 #else
-    #error unsupported platform
+#error unsupported platform
 #endif
 
 
 #if defined(_MSC_VER) && !defined(__clang__)
-    #define BG_COMPILER_MSVC 1
+#define BG_COMPILER_MSVC 1
 #elif defined(__clang__)
-    #define BG_COMPILER_CLANG 1
+#define BG_COMPILER_CLANG 1
 #elif defined(__GNUC__)
-    #define BG_COMPILER_GCC 1
+#define BG_COMPILER_GCC 1
 #else
-    #error UNKNOWN COMPILER
+#error UNKNOWN COMPILER
 #endif
 
 
 #if BG_SYSTEM_WINDOWS
-    #define BG_DEBUGBREAK __debugbreak()
+#define BG_DEBUGBREAK __debugbreak()
 #else 
-    #error  implement debugbreak
+#error  implement debugbreak
 #endif
 
 #if BG_DEVELOPER
-    #define BG_ASSERT(exp) do{if (!(exp)) { BG_DEBUGBREAK; }} while (0);
+#define BG_ASSERT(exp) do{if (!(exp)) { BG_DEBUGBREAK; }} while (0);
 #else
-    #define BG_ASSERT(exp)
+#define BG_ASSERT(exp)
 #endif
 
 #if !defined(BG_ARR_BOUNDS_CHECK)
-    #if defined(BG_DEVELOPER)
-        #if BG_DEVELOPER
-            #define BG_ARR_BOUNDS_CHECK 1
-        #endif
-    #endif
+#if defined(BG_DEVELOPER)
+#if BG_DEVELOPER
+#define BG_ARR_BOUNDS_CHECK 1
+#endif
+#endif
 #endif
 
 
 #if !defined(BG_ARR_BOUNDS_CHECK)
-    #define BG_ARR_BOUNDS_CHECK 0
+#define BG_ARR_BOUNDS_CHECK 0
 #endif
 
 #define bg_sizeof(x)  (u64)sizeof(x)
@@ -89,17 +92,17 @@ static_assert(sizeof(s8) == sizeof(u8));
 
 
 #if BG_SYSTEM_WINDOWS
-    #define BG_DLLEXPORT     __declspec(dllexport)
-    #define BG_DLLIMPORT     __declspec(dllimport)
+#define BG_DLLEXPORT     __declspec(dllexport)
+#define BG_DLLIMPORT     __declspec(dllimport)
 #else
-    #define BG_DLL_EXPORT    __attribute__((visibility("default")))
-    #define BG_DLL_IMPORT 
+#define BG_DLL_EXPORT    __attribute__((visibility("default")))
+#define BG_DLL_IMPORT 
 #endif
 
 #if defined(BG_BUILD_AS_DLL)
-    #define BG_API BG_DLLEXPORT
+#define BG_API BG_DLLEXPORT
 #else
-    #define BG_API BG_DLLIMPORT
+#define BG_API BG_DLLIMPORT
 #endif
 
 #include <stdio.h>
@@ -125,12 +128,12 @@ static_assert(sizeof(s8) == sizeof(u8));
 
 
 // POOL
-struct PoolEntry{
+struct PoolEntry {
     PoolEntry *next;
 };
 
 
-struct PoolAllocator{
+struct PoolAllocator {
     void *memory;
     PoolEntry *entries;
     u64 pool_size;
@@ -140,38 +143,38 @@ struct PoolAllocator{
 
 static inline PoolAllocator
 init_pool_allocator(void *mem, u64 msize, u64 psize) {
-    
+
     if (mem == 0) return {};
-    
+
     BG_ASSERT(mem);
     BG_ASSERT(msize >= psize);
     BG_ASSERT(msize > 0);
     BG_ASSERT(psize > 0);
 
-    PoolAllocator result = {};
+    PoolAllocator result ={};
     result.memory          = mem;
     result.pool_size       = psize;
     result.entry_count     = msize / psize;
-    
+
     for (u64 i = 0; i < (u64)result.entry_count - 1; i++) {
-        PoolEntry *entry = (PoolEntry*)((char*)mem + (psize * i));
-        entry->next        = (PoolEntry*)((char*)entry + psize);
+        PoolEntry *entry = (PoolEntry *)((char *)mem + (psize * i));
+        entry->next        = (PoolEntry *)((char *)entry + psize);
     }
-    
-    PoolEntry *entry = (PoolEntry*)((char*)mem + (psize * (result.entry_count - 1)));
-    
+
+    PoolEntry *entry = (PoolEntry *)((char *)mem + (psize * (result.entry_count - 1)));
+
     entry->next     = 0;
-    result.entries = (PoolEntry*)mem;
-    
+    result.entries = (PoolEntry *)mem;
+
     return result;
 }
 
-static inline void*
+static inline void *
 pool_allocate(PoolAllocator *alloc) {
     if (alloc->entries == 0) {
         return 0;
     }
-    void* result = alloc->entries;
+    void *result = alloc->entries;
     alloc->entries = alloc->entries->next;
     return result;
 }
@@ -181,18 +184,18 @@ pool_dealloc(PoolAllocator *alloc, void *mem) {
     if (mem == 0) {
         return;
     }
-    
-    PoolEntry* e = alloc->entries;
+
+    PoolEntry *e = alloc->entries;
     // edge case
     zero_memory(mem, alloc->pool_size);
     if (alloc->entries == 0) {
-        alloc->entries = (PoolEntry*)mem;
+        alloc->entries = (PoolEntry *)mem;
         return;
     }
-    
+
     while (1) {
         if (e->next == 0) {
-            e->next = (PoolEntry*)mem;
+            e->next = (PoolEntry *)mem;
             break;
         }
         e = e->next;
@@ -227,11 +230,11 @@ privDefer<F> defer_func(F f) {
 #define for_array(_index, array) for (u64 _index = 0; _index < (array).len; (_index)++)
 
 template<typename T>
-struct Array{
+struct Array {
     T *data = 0;
     u64 len = 0;
     u64 cap = 0;
-    inline T& operator[](u64 i) { 
+    inline T &operator[](u64 i) {
 
 #if BG_ARR_BOUNDS_CHECK
         BG_ASSERT(i < this->len);
@@ -241,44 +244,45 @@ struct Array{
     }
 };
 
-template<typename T> 
+template<typename T>
 void
 arrinit(Array<T> *arr, u64 capacity);
 
-template<typename T> 
+template<typename T>
 void
 arrput(Array<T> *arr, T val);
 
-template<typename T> 
-void 
+template<typename T>
+void
 arrputn(Array<T> *arr, T *values, u64 n);
 
-template<typename T> 
+template<typename T>
 T
 arrpop(Array<T> *arr);
 
-template<typename T> 
+template<typename T>
 void
 arrfree(Array<T> *arr);
 
-template<typename T> 
+template<typename T>
 void
 arrreserve(Array<T> *arr, u64 n);
 
-template<typename T> 
+template<typename T>
 void
 arr__grow(Array<T> *arr, u64 new_cap);
 
-template<typename T> 
+
+template<typename T>
 void
 arrinit(Array<T> *arr, u64 cap) {
-    BG_ASSERT(arr->len  == 0);
+    BG_ASSERT(arr->len == 0);
     BG_ASSERT(arr->data == NULL);
     arr->data = NULL;
     arr__grow(arr, cap);
 }
 
-template<typename T> 
+template<typename T>
 void
 arr__grow(Array<T> *arr, u64 new_cap) {
     if (arr->cap > new_cap)
@@ -288,32 +292,30 @@ arr__grow(Array<T> *arr, u64 new_cap) {
     if (arr->cap <= 8)
         min_cap = 8;
     if (min_cap < new_cap) {
-        if (min_cap * 2 + 4 < new_cap) {
-            min_cap = new_cap;         
-        }
-        else {
+        if (min_cap * 2 + 4 < new_cap)
+            min_cap = new_cap;
+        else
             min_cap = min_cap * 2 + 4;
-        }
     }
 
-    arr->data = (T *)bg_realloc(arr->data, min_cap * bg_sizeof(arr[0]));
+    arr->data = (T *)bg_realloc(arr->data, min_cap * bg_sizeof(arr->data[0]));
     arr->cap  = min_cap;
 
     zero_memory(arr->data + arr->len, (arr->cap - arr->len) * bg_sizeof(arr->data[0]));
 }
 
 
-template<typename T> 
+template<typename T>
 void
 arrput(Array<T> *arr, T val) {
     if (arr->len == arr->cap) {
-        arr__grow(arr, arr->cap + 1);    
+        arr__grow(arr, arr->cap + 1);
     }
     arr->data[arr->len] = val;
     arr->len++;
 }
 
-template<typename T> 
+template<typename T>
 void
 arrputn(Array<T> *arr, T *values, u64 n) {
     if (arr->len + n >= arr->cap) {
@@ -321,10 +323,10 @@ arrputn(Array<T> *arr, T *values, u64 n) {
     }
     BG_ASSERT(arr->len + n <= arr->cap);
     copy_memory(arr->data + arr->len, values, n * sizeof(arr->data[0]));
-    arr->len += n;    
+    arr->len += n;
 }
 
-template<typename T> 
+template<typename T>
 T
 arrpop(Array<T> *arr) {
     if (arr->len > 0) {
@@ -333,7 +335,7 @@ arrpop(Array<T> *arr) {
     return {};
 }
 
-template<typename T> 
+template<typename T>
 void
 arrfree(Array<T> *arr) {
     bg_free(arr->data);
@@ -341,25 +343,37 @@ arrfree(Array<T> *arr) {
     arr->cap = 0;
 }
 
-template<typename T> 
+template<typename T>
 void
 arrreserve(Array<T> *arr, u64 n) {
-    arr__grow(arr, n);    
+    arr__grow(arr, n);
 }
 
 template<typename T>
-struct Slice{
+T *
+arrputnempty(Array<T> *arr, u64 count) {
+    if (arr->len + count >= arr->cap)
+        arr__grow(arr, arr->len + count);
+
+    T *result = &arr->data[arr->len];
+    arr->len += count;
+    ///zero_memory(result, count * bg_sizeof(arr->data[0]));
+    return result;
+}
+
+template<typename T>
+struct Slice {
     T *data;
     u64 len;
-    inline T& operator[](u64 i) {
+    inline T &operator[](u64 i) {
         return data[i];
     }
 };
 
 template<typename T> void
-slice_from_array(Slice<T> *slice, Array<T> *arr) {
-    slice->data = arr->data;
-    slice->len  = arr->len;
+slice_from_array(Slice<T> *slice, Array<T> const &arr) {
+    slice->data = arr.data;
+    slice->len  = arr.len;
 }
 
 
@@ -372,7 +386,7 @@ slice_from_array(Slice<T> *slice, Array<T> *arr) {
 #include <windows.h>
 #endif
 
-struct BgMutex{
+struct BgMutex {
 #if BG_SYSTEM_WINDOWS
     CRITICAL_SECTION critical_section;
 #else
@@ -399,33 +413,43 @@ struct FileRead {
     u64 len;
 };
 
-typedef void* BgFile;
+struct BgFile {
+#if BG_SYSTEM_WINDOWS
+    HANDLE     handle;
+    OVERLAPPED overlapped;
+#else
+#error implement
+#endif
+};
 
 #if BG_SYSTEM_WINDOWS
-    #include <windows.h>
+#include <windows.h>
 #endif
 
 static inline bool
-is_file_handle_valid(BgFile file) {
+is_file_handle_valid(BgFile *file) {
 #if BG_SYSTEM_WINDOWS
     // INVALID_HANDLE_VALUE definition copypasta from microsoft headers.
-    return file != INVALID_HANDLE_VALUE;
+    return file->handle != INVALID_HANDLE_VALUE;
 #else
-    #error implement 
+#error implement 
 #endif
 }
 
-s64 
-get_fp(BgFile file);
+s64
+get_fp(BgFile *file);
 
-s64 
-set_fp(BgFile file, s64 offset);
-
-bool
-write_file(BgFile file, void *data, u32 n);
+s64
+set_fp(BgFile *file, s64 offset);
 
 bool
-read_file(BgFile file, void *data, u32 n);
+write_file(BgFile *file, void *data, u64 n);
+
+bool
+read_file(BgFile *file, void *data, u64 n);
+
+bool
+read__file(BgFile *file, void *buffer, u64 n, bool wait_for_completion);
 
 s64
 get_file_size(char *fn);
@@ -449,12 +473,12 @@ bool
 delete_file(wchar_t *fn);
 
 void
-close_file(BgFile file);
+close_file(BgFile *file);
 
 FileRead
 read_file_all(char *fn);
 
-void 
+void
 free_file_read(FileRead *fr);
 
 bool
@@ -470,11 +494,11 @@ bool
 copy_file_overwrite(wchar_t *file, wchar_t *dest);
 
 
-Array<char*>
+Array<char *>
 get_filelist(char *dir);
 
 void
-free_filelist(Array<char*> *list);
+free_filelist(Array<char *> &list);
 
 
 u32
@@ -482,15 +506,15 @@ crc32(void *memory, u64 size);
 
 
 /*
-    BG STRING 
+    BG STRING
 */
 
 // @@NOTE(Batuhan) those two (for now), needs external functions to operate, we 
 // dont want to pull weight of compilation to everywhere 
-wchar_t* 
+wchar_t *
 multibyte_to_widestr(char *s);
 
-char*
+char *
 widestr_to_multibyte(wchar_t *ws);
 
 
@@ -513,14 +537,14 @@ string_replace_every_ch(wchar_t *src, wchar_t to_be_searched, wchar_t to_be_repl
 }
 
 
-static inline u64 
+static inline u64
 string_length(wchar_t *ws) {
     auto b = ws;
     for (; *ws != 0; ws++);
     return ws - b;
 }
 
-static inline u64 
+static inline u64
 string_length(char *s) {
     auto b = s;
     for (; *s != 0; s++);
@@ -529,18 +553,18 @@ string_length(char *s) {
 
 
 
-static inline wchar_t*
+static inline wchar_t *
 get_file_name_needle(wchar_t *fp, wchar_t *end = 0) {
-    
+
     if (end != 0 && end < fp)
         return 0;
-    
+
     u64 ts_i = 0;
-    wchar_t* base = fp;
+    wchar_t *base = fp;
     BG_ASSERT(fp);
-    
+
     if (end == 0) {
-        end = (wchar_t*)((u64)-1);
+        end = (wchar_t *)((u64)-1);
         for (; *fp != 0 && fp < end; fp++) {
             if (*fp == L'\\' || *fp == L'/') {
                 ts_i = fp - base;
@@ -554,23 +578,23 @@ get_file_name_needle(wchar_t *fp, wchar_t *end = 0) {
             }
         }
     }
-    
-    
+
+
     return &base[ts_i ? ++ts_i : 0];
 }
 
-static inline char*
+static inline char *
 get_file_name_needle(char *fp, char *end = 0) {
-    
+
     if (end != 0 && end < fp)
         return 0;
-    
+    //[a-z] \*[a-z]
     s64 ts_i = 0;
-    char* base = fp;
+    char *base = fp;
     BG_ASSERT(fp);
-    
+
     if (end == 0) {
-        end = (char*)((u64)-1);
+        end = (char *)((u64)-1);
         for (; *fp != 0 && fp < end; fp++) {
             if (*fp == '\\' || *fp == '/') {
                 ts_i = fp - base;
@@ -584,8 +608,8 @@ get_file_name_needle(char *fp, char *end = 0) {
             }
         }
     }
-    
-    
+
+
     return &base[ts_i ? ++ts_i : 0];
 }
 
@@ -613,7 +637,7 @@ string_copy(wchar_t *dest, wchar_t *src) {
 
 static inline wchar_t *
 string_concanate(wchar_t *dest, u64 dest_max, wchar_t *lhs, u64 lhs_len, wchar_t *rhs, u64 rhs_len) {
-    
+
     BG_ASSERT(dest);
     BG_ASSERT(lhs);
     BG_ASSERT(rhs);
@@ -652,24 +676,29 @@ string_concanate(char *dest, u64 dest_max, char *lhs, u64 lhs_len, char *rhs, u6
     return dest;
 }
 
-static inline void
+static inline u64
 string_append(char *str, char *app, u64 strlen = 0, u64 applen = 0) {
     if (strlen == 0) strlen = string_length(str);
     if (applen == 0) applen = string_length(app);
 
     copy_memory(str + strlen, app, applen);
-
+    return strlen + applen;
 }
 
 static inline bool
 string_equal(char *s1, char *s2) {
     for (;;) {
-        if (*s1 != *s2)       
+        if (*s1 != *s2)
             return false;
         s1++; s2++;
-        if (*s1 == 0 && *s2 == 0) 
+        if (*s1 == 0 && *s2 == 0)
             return true;
     }
+}
+
+static inline bool
+is_numeric(char c) {
+    return (c >= '0' && c <= '9');
 }
 
 static inline bool
@@ -677,11 +706,16 @@ is_alpha(char c) {
     return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z');
 }
 
+static inline bool
+is_alphanumeric(char c) {
+    return is_numeric(c) && is_alpha(c);
+}
+
 static inline char
 to_lower(char c) {
-    if (c >= 'A' && c<= 'Z')
-         return ('Z' - c) + 'a';
-     return c;    
+    if (c >= 'A' && c <= 'Z')
+        return ('Z' - c) + 'a';
+    return c;
 }
 
 static inline wchar_t
@@ -690,7 +724,7 @@ to_lower(wchar_t c) {
 }
 
 static inline void
-lower_string(char  *str) {
+lower_string(char *str) {
     for (; *str != 0; str++) {
         *str = to_lower(*str);
     }
@@ -706,10 +740,10 @@ lower_string(wchar_t *str) {
 static inline bool
 string_equal(wchar_t *w1, wchar_t *w2) {
     for (;;) {
-        if (*w1 != *w2)       
+        if (*w1 != *w2)
             return false;
         w1++; w2++;
-        if (*w1 == 0 && *w2 == 0) 
+        if (*w1 == 0 && *w2 == 0)
             return true;
     }
     return false;
@@ -719,10 +753,10 @@ string_equal(wchar_t *w1, wchar_t *w2) {
 static inline bool
 string_equal_n(wchar_t *w1, wchar_t *w2, u64 n) {
     for (u64 i = 0; i < n; i++) {
-        if (*w1 != *w2)       
+        if (*w1 != *w2)
             return false;
         w1++; w2++;
-        if (*w1 == 0 && *w2 == 0) 
+        if (*w1 == 0 && *w2 == 0)
             return true;
     }
     return true;
@@ -732,22 +766,22 @@ string_equal_n(wchar_t *w1, wchar_t *w2, u64 n) {
 
 static inline bool
 string_equal_ignore_case_n(wchar_t *s1, wchar_t *s2, u64 n) {
-    for (u64 i = 0; i<n; i++) {
-        if (to_lower(*s1) != to_lower(*s2))       
+    for (u64 i = 0; i < n; i++) {
+        if (to_lower(*s1) != to_lower(*s2))
             return false;
         s1++; s2++;
-        if (*s1 == 0 && *s2 == 0) 
+        if (*s1 == 0 && *s2 == 0)
             return true;
-    }   
+    }
     return true;
 }
 
 static inline wchar_t *
 string_duplicate(wchar_t *ws) {
     static_assert(sizeof(wchar_t) == 2);
-    
+
     u64 wlen = string_length(ws);
-    wchar_t *result = (wchar_t*)bg_calloc(wlen + 1, sizeof(wchar_t));
+    wchar_t *result = (wchar_t *)bg_calloc(wlen + 1, sizeof(wchar_t));
     string_copy(result, ws);
     return result;
 }
@@ -763,30 +797,30 @@ string_duplicate(char *str) {
 static inline bool
 compare_extension(char *fp, char *ext) {
     auto fn = get_file_name_needle(fp);
-    
+
     u64 slen   = string_length(fn);
     u64 extlen = string_length(ext);
-    
+
     if (extlen > slen) {
         return false;
     }
-    
-    return (memory_equal(fn + slen - extlen, ext, extlen));    
+
+    return (memory_equal(fn + slen - extlen, ext, extlen));
 }
 
 static inline bool
 compare_extension(wchar_t *fp, wchar_t *ext) {
-    
+
     auto fn = get_file_name_needle(fp);
-    
+
     u64 slen   = string_length(fn);
     u64 extlen = string_length(ext);
-    
+
     if (extlen > slen) {
         return false;
     }
-    
-    return memory_equal(fn + slen - extlen, ext, extlen);    
+
+    return memory_equal(fn + slen - extlen, ext, extlen);
 }
 
 /*
@@ -799,13 +833,13 @@ compare_extension(wchar_t *fp, wchar_t *ext) {
 #ifdef BG_IMPLEMENTATION
 
 #if BG_SYSTEM_WINDOWS
-    #include <Windows.h>
-    #include <debugapi.h>
-    #include <WinIoCtl.h>
+#include <Windows.h>
+#include <debugapi.h>
+#include <WinIoCtl.h>
 #endif
 
 
-constexpr u32 BG__CRC32_TABLE[256] = {
+constexpr u32 BG__CRC32_TABLE[256] ={
     0x00000000, 0x77073096, 0xee0e612c, 0x990951ba,
     0x076dc419, 0x706af48f, 0xe963a535, 0x9e6495a3,
     0x0edb8832, 0x79dcb8a4, 0xe0d5e91e, 0x97d2d988,
@@ -885,93 +919,99 @@ crc32(void *data, u64 len) {
 }
 
 
-wchar_t* 
+wchar_t *
 multibyte_to_widestr(char *s) {
     wchar_t *result = 0;
-    
+
     int slen = (int)string_length(s) + 1;
-    
+
 #if defined(_WIN32)
     int chneeded = MultiByteToWideChar(CP_UTF8, 0, (LPCCH)s, slen, 0, 0);
     BG_ASSERT(chneeded != 0);
     //chneeded += 1;
-    
-    result = (wchar_t*)bg_calloc(chneeded, 2);
+
+    result = (wchar_t *)bg_calloc(chneeded, 2);
     BG_ASSERT(result);
-    
+
     int wr = MultiByteToWideChar(CP_UTF8, 0, (LPCCH)s, slen, result, chneeded);
     BG_ASSERT(wr == chneeded);
 #else
 #error not implemented
 #endif
-    
+
     return result;
 }
 
-char*
+char *
 widestr_to_multibyte(wchar_t *ws) {
     char *result = 0;
-    
+
     int wslen = (int)string_length(ws);
-    
+
 #if defined(_WIN32)
-    int chneeded = WideCharToMultiByte(CP_UTF8, 0, ws, wslen, NULL, 0, NULL, NULL) ;
-    
-    result = (char*)bg_calloc((u64)chneeded, 1);
-    
+    int chneeded = WideCharToMultiByte(CP_UTF8, 0, ws, wslen, NULL, 0, NULL, NULL);
+
+    result = (char *)bg_calloc((u64)chneeded, 1);
+
     int wr = WideCharToMultiByte(CP_UTF8, 0, ws, wslen, (LPSTR)result, chneeded, NULL, NULL);
     BG_ASSERT(wr <= chneeded);
 #else
-    #error not implemented
+#error not implemented
 #endif
-    
+
     return result;
 }
 
 
 s64
-get_fp(BgFile file) {
+get_fp(BgFile *file) {
 #if BG_SYSTEM_WINDOWS
     LARGE_INTEGER start  ={};
     LARGE_INTEGER result ={};
-    BOOL spresult = SetFilePointerEx(file, start, &result, FILE_CURRENT);
+    BOOL spresult = SetFilePointerEx(file->handle, start, &result, FILE_CURRENT);
     BG_ASSERT(spresult);
     if (!spresult) {
-        LOG_ERROR("Unable to get file pointer for file handle 0x%p", file);
+        LOG_ERROR("Unable to get file pointer\n");
     }
-    
+
     return result.QuadPart;
 #else
-    #error not implemented
+#error not implemented
 #endif
 }
 
 s64
-set_fp(BgFile file, s64 offset) {
+set_fp(BgFile *file, s64 offset) {
+    file->cached_fp = offset;
 #if BG_SYSTEM_WINDOWS
     LARGE_INTEGER start ={};
     start.QuadPart = offset;
     LARGE_INTEGER result ={};
-    BOOL spresult = SetFilePointerEx(file, start, &result, FILE_BEGIN);
+    BOOL spresult = SetFilePointerEx(file->handle, start, &result, FILE_BEGIN);
     BG_ASSERT(spresult);
     if (!spresult) {
-        LOG_ERROR("Unable to get file pointer for file handle 0x%p", file);
+        LOG_ERROR("Unable to set file pointer\n");
     }
     return result.QuadPart == offset;
 #else
-    #error not implemented
+#error not implemented
 #endif
 }
 
 bool
-write_file(BgFile file, void *data, u32 n) {
+write_file(BgFile *file, void *data, u64 n) {
 #if BG_SYSTEM_WINDOWS
+    BG_ASSERT(n < BG_U32_MAX);
+    if (n > BG_U32_MAX) {
+        LOG_WARNING("Reading bigger than 4GB is not supported yet\n");
+        return false;
+    }
     if (n == 0) {
         return true;
     }
     DWORD br = 0;
-    if (!WriteFile(file, data, n, &br, 0) || n != br) {
-        LOG_ERROR("Unable to write n(%u) bytes to file, instead written %lu, err %lu\n", n, br, GetLastError());
+    if (!WriteFile(file->handle, data, n, &br, 0) || n != br) {
+        LOG_ERROR("Unable to write n(%llu) bytes to file, instead written %lu, err %lu\n", n, br, GetLastError());
         return false;
     }
     return true;
@@ -981,18 +1021,76 @@ write_file(BgFile file, void *data, u32 n) {
 }
 
 bool
-read_file(BgFile file, void *buffer, u32 n) {
+read_file(BgFile *file, void *buffer, u64 n) {
+    return read__file(file, buffer, n, true);
+}
+
+bool
+read_file_async(BgFile *file, void *buffer, u64 n) {
+    return read__file(file, buffer, n, false);
+}
+
+bool
+read__file(BgFile *file, void *buffer, u64 n, bool wait_for_completion) {
 #if BG_SYSTEM_WINDOWS
-    DWORD br = 0;
-    if (!ReadFile(file, buffer, n, &br, 0) || n != br) {
-        LOG_ERROR("Unable to read n(%u) bytes from file, instead read %lu, err %lu\n", n, br, GetLastError());
+
+    BG_ASSERT(n < BG_U32_MAX);
+    if (n > BG_U32_MAX) {
+        LOG_WARNING("Reading bigger than 4GB is not supported yet\n");
         return false;
     }
+
+
+    BG_ASSERT(file->cached_fp == get_fp(file));
+
+    file->overlapped.Offset     = (file->cached_fp & (0xffffffff));
+    file->overlapped.OffsetHigh = (file->cached_fp >> 32);
+
+    DWORD br = 0;
+    auto readfile_result = ReadFile(file->handle, buffer, n, NULL, file->overlapped);
+
+    if () {
+        LOG_ERROR("Unable to read n(%llu) bytes from file, instead read %lu, err %lu\n", n, br, GetLastError());
+        return false;
+    }
+
+    if (wait_for_completion) {
+        DWORD bytes_transferred = 0;
+        auto winapi_result = GetOverlappedResultEx(file->handle, &file->overlapped, &bytes_transferred, INFINITE, FALSE);
+        BG_ASSERT(winapi_result != 0);
+        if (winapi_result == 0) {
+            // error
+        }
+        else {
+            // success
+        }
+    }
+    else {
+        return true;
+    }
+
     return true;
 #else
 #error not implemented
 #endif
 }
+
+
+#if 0
+bool
+read_file_async(BgFile *file, void *buffer, u32 n) {
+}
+
+bool
+check_file_async_io(BgFile *file) {
+
+}
+
+bool
+wait_file_async_ms(u64 ms) {
+
+}
+#endif
 
 BgFile
 open_file(char *fn) {
@@ -1013,7 +1111,9 @@ open_file(wchar_t *fn) {
     if (file == INVALID_HANDLE_VALUE) {
         LOG_ERROR("Unable to open existing file %S, err %lu\n", fn, GetLastError());
     }
-    return (void *)file;
+    BgFile result ={};
+    result.handle = file;
+    return result;
 #else
 #error not implemented
 #endif        
@@ -1023,12 +1123,12 @@ bool
 delete_file(char *fn) {
 #if BG_SYSTEM_WINDOWS
     BOOL winapi_result = DeleteFileA(fn);
-    if (winapi_result != 0) {
-        LOG_ERROR("Unable to delete file %s\n", fn);
+    if (winapi_result == 0) {
+        LOG_ERROR("Unable to delete file %s, reason %ld\n", fn, GetLastError());
     }
     return winapi_result != 0;
 #else
-    #error implement
+#error implement
 #endif
 }
 
@@ -1036,12 +1136,12 @@ bool
 delete_file(wchar_t *fn) {
 #if BG_SYSTEM_WINDOWS
     BOOL winapi_result = DeleteFileW(fn);
-    if (winapi_result != 0) {
-        LOG_ERROR("Unable to delete file %S\n", fn);
+    if (winapi_result == 0) {
+        LOG_ERROR("Unable to delete file %S, reason %ld\n", fn, GetLastError());
     }
     return winapi_result != 0;
 #else
-    #error implement
+#error implement
 #endif
 }
 
@@ -1060,7 +1160,7 @@ get_file_size(wchar_t *fn) {
     HANDLE file = CreateFileW(fn, FILE_GENERIC_READ, FILE_SHARE_WRITE | FILE_SHARE_READ | FILE_SHARE_DELETE, 0, OPEN_EXISTING, FILE_ATTRIBUTE_READONLY, 0);
     BG_ASSERT(file != INVALID_HANDLE_VALUE);
     if (file != INVALID_HANDLE_VALUE) {
-        LARGE_INTEGER fsli = {};
+        LARGE_INTEGER fsli ={};
         BOOL winapiresult  = GetFileSizeEx(file, &fsli);
         BG_ASSERT(winapiresult);
         result = fsli.QuadPart;
@@ -1072,7 +1172,7 @@ get_file_size(wchar_t *fn) {
     CloseHandle(file);
     return result;
 #else
-    #error implement
+#error implement
 #endif
 }
 
@@ -1083,16 +1183,21 @@ create_file(char *fn) {
     if (file == INVALID_HANDLE_VALUE) {
         LOG_ERROR("Unable to create existing file %s, err %lu\n", fn, GetLastError());
     }
-    return (void *)file;
+    BgFile result ={};
+    result.handle     = file;
+    result.overlapped ={};
+    return result;
 #else
 #error not implemented
 #endif
 }
 
 void
-close_file(BgFile file) {
+close_file(BgFile *file) {
 #if BG_SYSTEM_WINDOWS
-    CloseHandle((HANDLE)file);
+    CloseHandle(file->handle);
+    file->handle = INVALID_HANDLE_VALUE;
+    // @TODO cancel all pending io's via CancelIO
 #else
 #error not implemented
 #endif
@@ -1100,15 +1205,15 @@ close_file(BgFile file) {
 
 
 FileRead
-read_file_all(char* fn) {
+read_file_all(char *fn) {
 #if BG_SYSTEM_WINDOWS
-    
+
     FileRead result ={};
     HANDLE file = CreateFileA(fn, GENERIC_READ, 0, 0, OPEN_EXISTING, 0, 0);
     defer({ CloseHandle(file); });
-    
+
     BG_ASSERT(file != INVALID_HANDLE_VALUE);
-    
+
     if (file != INVALID_HANDLE_VALUE) {
         DWORD BytesRead = 0;
         result.len = (u64)GetFileSize(file, 0); // safe to assume file size < 2 GB
@@ -1120,7 +1225,7 @@ read_file_all(char* fn) {
                 // @NOTE success
             }
             else {
-                LOG_WARNING("Unable to read %llu bytes from file %s, instead read %lu\n", result.len, fn, BytesRead);  
+                LOG_WARNING("Unable to read %llu bytes from file %s, instead read %lu\n", result.len, fn, BytesRead);
                 bg_free(result.data);
             }
         }
@@ -1131,14 +1236,14 @@ read_file_all(char* fn) {
     else {
         LOG_WARNING("Can't create file: %s\n", fn);
     }
-    
+
     return result;
 #else
 #error not implemented
 #endif
 }
 
-void 
+void
 free_file_read(FileRead *fr) {
     bg_free(fr->data);
     fr->len = 0;
@@ -1148,12 +1253,12 @@ free_file_read(FileRead *fr) {
 bool
 read_filen(char *fn, void *data, u64 n) {
 #if BG_SYSTEM_WINDOWS
-    
+
     HANDLE file = CreateFileA(fn, GENERIC_READ, 0, 0, OPEN_EXISTING, 0, 0);
     defer({ CloseHandle(file); });
-    
+
     BG_ASSERT(file != INVALID_HANDLE_VALUE);
-    
+
     if (file != INVALID_HANDLE_VALUE) {
         DWORD br = 0;
         if (ReadFile(file, data, (DWORD)n, &br, 0) && br == n) {
@@ -1166,7 +1271,7 @@ read_filen(char *fn, void *data, u64 n) {
     else {
         LOG_ERROR("Can't open file %s to read %zd bytes\n", fn, n);
     }
-    
+
     return false;
 #else
 #error not implemented
@@ -1179,9 +1284,9 @@ dump_file(char *fn, void *d, u64 n) {
     HANDLE file = CreateFileA(fn, GENERIC_WRITE, 0, 0, CREATE_NEW, 0, 0);
     BG_ASSERT(file != INVALID_HANDLE_VALUE);
     DWORD br = 0;
-    
+
     if (WriteFile(file, d, (DWORD)n, &br, 0) && br == n) {
-        
+
     }
     else {
         LOG_ERROR("Unable to dump memory(0x%p : %zd) to file %s\n", d, n, fn);
@@ -1193,13 +1298,13 @@ dump_file(char *fn, void *d, u64 n) {
 #endif
 }
 
- 
+
 bool
 copy_file_overwrite(char *file, char *dest) {
 #if BG_SYSTEM_WINDOWS
     return CopyFileA(file, dest, true);
 #else
-    #error implement!
+#error implement!
 #endif
 }
 
@@ -1208,70 +1313,73 @@ copy_file_overwrite(wchar_t *file, wchar_t *dest) {
 #if BG_SYSTEM_WINDOWS
     return CopyFileW(file, dest, true);
 #else
-    #error implement!
+#error implement!
 #endif
 }
 
 
-Array<char*>
+Array<char *>
 get_filelist(char *dir) {
 #if defined(_WIN32)
-    
-    char wildcard_dir[280] = {};
+
+    char wildcard_dir[280] ={};
     u64 dirlen = string_length(dir);
     dirlen++; // null termination
-    
+
     BG_ASSERT(sizeof(wildcard_dir) > dirlen);
-    
-    Array<char*> result = {};
+
+    Array<char *> result ={};
     arrreserve(&result, 20);
-    
+
+    string_append(wildcard_dir, dir);
     string_append(wildcard_dir, "\\*");
 
     WIN32_FIND_DATAA FDATA;
     HANDLE FileIterator = FindFirstFileA(wildcard_dir, &FDATA);
-    
+
     if (FileIterator != INVALID_HANDLE_VALUE) {
-        
+
         while (FindNextFileA(FileIterator, &FDATA) != 0) {
-            
+
             //@NOTE(Batuhan): Do not search for sub-directories, skip folders.
             if (FDATA.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) {
                 continue;
             }
-            
-            // @Stupid +4 just to be sure there is enough room for null termination
-            u64 fn_len = string_length(FDATA.cFileName);
-            fn_len += dirlen + 4;
-            
-            char *fnbuffer = (char*)bg_calloc(fn_len, 1);
 
-            string_append(fnbuffer, "\\");
-            string_append(fnbuffer, FDATA.cFileName);
-            
+            // @Stupid +5 just to be sure there is enough room for null termination
+            u64 fn_len = string_length(FDATA.cFileName);
+            fn_len += dirlen + 5;
+
+            char *fnbuffer = (char *)bg_calloc(fn_len, 1);
+
+            u64 slen = 0;
+            slen = string_append(fnbuffer, dir, slen);
+            slen = string_append(fnbuffer, "\\", slen);
+            slen = string_append(fnbuffer, FDATA.cFileName, slen);
+
             arrput(&result, fnbuffer);
-            
+
         }
-    
-        
+
+
     }
     else {
         printf("Cant iterate directory\n");
     }
-    
+
 
     FindClose(FileIterator);
-    
+
     return result;
 #else 
     // linux
-    #error not implemented 
+#error not implemented 
 #endif
 }
 
 void
-free_filelist(Array<char*> *list) {
-    arrfree(list);
+free_filelist(Array<char *> &list) {
+    arrfree(&list);
 }
 
 
