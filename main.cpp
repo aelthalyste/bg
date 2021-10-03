@@ -105,6 +105,46 @@ do_sync_thing() {
 } 
 
 
+u64
+compare_conversion_speed() {
+	s64 result = 0;
+	u64 test_count = 1000 * 1000 * 25; // 4million is sane number to test it;
+	
+	Array<char *> strings;
+	arrreserve(&strings, 100);
+	arrput(&strings, (char *)"4092948!£");
+	arrput(&strings, (char *)"8278!£");
+	arrput(&strings, (char *)"42534");
+	arrput(&strings, (char *)"-4982983792");
+	arrput(&strings, (char *)"-49828278!£");
+	arrput(&strings, (char *)"-49828278!£");
+	arrput(&strings, (char *)"49828278!£");
+	arrput(&strings, (char *)"49828278!£");
+
+	u64 std_start = bg_clock();
+	for (u64 i = 0; i < test_count; i++) {
+		for_array (i, strings) {
+		 	result += atoll(strings[i]);
+		}
+	}
+	u64 std_end = bg_clock();
+
+
+	u64 custom_start = bg_clock();
+	for (u64 i = 0; i < test_count; i++) {
+		for_array (i, strings) {
+		 	result += string_to_u64(strings[i]);
+		}
+	}
+	u64 custom_end = bg_clock();
+
+	double custom_ms = to_ms(custom_end - custom_start);
+	double std_ms    = to_ms(std_end - std_start);
+	LOG_INFO("Cus %.5f\nStd %.5f\nCustom is  %.5fX faster than std\n", custom_ms, std_ms, std_ms/custom_ms);
+	return result;
+
+}
+
 int main() {
 
 	char bf16[16]; memset(bf16, 0xcc, bg_sizeof(bf16));
@@ -129,12 +169,53 @@ int main() {
 	LOG_INFO("%p %p %p\n", r4, r5, r6);
 	LOG_INFO("%S %S %S\n", r4, r5, r6);
 
-	std::string a;
-	std::cin>>a;
+	{
+		u64 conversion_result = 0;
+		conversion_result = string_to_u64("  405230!-43");
+		BG_ASSERT(conversion_result == 405230);
+
+		conversion_result = string_to_u64("-405230!-43");
+		BG_ASSERT(conversion_result == 0);
+
+		conversion_result = string_to_u64("0593!-43");
+		BG_ASSERT(conversion_result == 593);
+
+		conversion_result = string_to_u64("40a5230!-43");
+		BG_ASSERT(conversion_result == 40);
+
+		conversion_result = string_to_u64("8948392!-43");
+		BG_ASSERT(conversion_result == 8948392);
+	}
+
+	{
+		s64 conversion_result = 0;
+		conversion_result = string_to_s64("  405230!-43");
+		BG_ASSERT(conversion_result == 405230);
+
+		conversion_result = string_to_s64("-405230!-43");
+		BG_ASSERT(conversion_result == -405230);
+
+		conversion_result = string_to_s64("0593!-43");
+		BG_ASSERT(conversion_result == 593);
+
+		conversion_result = string_to_s64("40a5230!-43");
+		BG_ASSERT(conversion_result == 40);
+
+		conversion_result = string_to_s64(" -00900!-43");
+		BG_ASSERT(conversion_result == -900);
+
+		conversion_result = string_to_s64("- 8948392!-43");
+		BG_ASSERT(conversion_result == -8948392);
+	}
 
 	LARGE_INTEGER li;
 	QueryPerformanceFrequency(&li);
 	clocks_per_sec = li.QuadPart;
+
+
+	compare_conversion_speed();
+	return 0;
+
 
 	std::vector<std::thread> thread_vector;
 	thread_vector.reserve(100);

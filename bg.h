@@ -663,6 +663,7 @@ get_file_name_needle(char *fp, char *end = 0) {
     return &base[ts_i ? ++ts_i : 0];
 }
 
+
 static inline void
 string_copy(char *dest, char *src) {
     for (;;) {
@@ -760,6 +761,61 @@ static inline bool
 is_alphanumeric(char c) {
     return is_numeric(c) && is_alpha(c);
 }
+
+static inline u64
+string_to_u64(char *str) {
+
+    // with validation enabled, this runs 6x faster std lib, without this it will be 7x faster, which is about %15-18 perf gain
+    for (;;str++) {
+        if (*str == 0) 
+            return 0;
+        if (*str == '-') // there shouldnt be sign on unsigned type, :]
+            return 0;
+        if (*str != ' '  && *str != '0' && is_numeric(*str))
+            break;
+        if (*str != ' ' && !is_numeric(*str))
+            return 0;
+
+    }
+    
+    u64 result = *str - '0';
+    ++str;
+    while(is_numeric(*str)) {
+        result = result * 10 + (*str - '0');
+        ++str;
+    }
+
+    return result;
+}
+
+static inline s64
+string_to_s64(char *str) {
+    
+    s64 sign = 1;
+
+    // with validation enabled, this runs 6x faster std lib, without this, it would be 7x faster, which is extra %15-18 perf gain
+    for (;;str++) {
+        if (*str == 0) 
+            return 0;
+        if (*str == '-')
+            sign = -1;
+        if (*str != ' '  && *str != '0' && is_numeric(*str))
+            break;
+        if (*str != ' ' && *str != '-' && !is_numeric(*str))
+            return 0;
+    }
+
+    u64 result = *str - '0';
+    ++str;
+    while(is_numeric(*str)) {
+        result *= 10;
+        result += (*str - '0');
+        ++str;
+    }
+
+    return sign * result;
+}
+
 
 static inline char
 to_lower(char c) {
