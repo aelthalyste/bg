@@ -888,7 +888,7 @@ string_duplicate(wchar_t *ws) {
 
     u64 wlen = string_length(ws);
     wchar_t *result = (wchar_t *)bg_calloc(wlen + 1, sizeof(wchar_t));
-    string_copy(result, ws);
+    copy_memory(result, ws, ws * 2);
     return result;
 }
 
@@ -896,7 +896,7 @@ static inline char *
 string_duplicate(char *str) {
     u64 len = string_length(str);
     char *result = (char *)bg_calloc(len + 1, 1);
-    string_copy(result, str);
+    copy_memory(result, str, len);
     return result;
 }
 
