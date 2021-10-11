@@ -1,10 +1,8 @@
 # bg
-personal, platform-free c++ standard library 
-
-# it's not battle ready, most of it is windows-only(for now). 
+personal, platform-free c++ standard library  
 
 # features
- - easy to use async io interface
+ - easy to use async io interface(no async support for linux yet)
  - saner string api
  - array<t> type that doesn't tank compile times like std::vector.
  - scope defer (from gingerBill)!
