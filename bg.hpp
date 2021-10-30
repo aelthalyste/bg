@@ -1,25 +1,21 @@
-#pragma once
+#ifndef BG_H_DECLERATIONS
+#define BG_H_DECLERATIONS
 
 #include <stdint.h>
 #include <string.h>
 
-
+#define _CRT_SECURE_NO_WARNINGS 1
 #define BG_U32_MAX 0xffffffff
 
 // platform specific includes
 
+
 #if defined(_WIN32) || defined(_WIN64)
-    #ifndef BG_SYSTEM_WINDOWS
-        #define BG_SYSTEM_WINDOWS 1
-    #endif
+    #define BG_SYSTEM_WINDOWS 1
 #elif defined(__APPLE__) && defined(__MACH__)
-    #ifndef BG_SYSTEM_OSX
-        #define BG_SYSTEM_OSX 1
-    #endif
+    #define BG_SYSTEM_OSX 1
 #elif defined(__linux__)
-    #ifndef BG_SYSTEM_LINUX
-        #define BG_SYSTEM_LINUX 1
-    #endif
+    #define BG_SYSTEM_LINUX 1
 #else
     #error unsupported platform
 #endif
@@ -36,11 +32,13 @@
 #endif
 
 
+
 #if BG_SYSTEM_WINDOWS
 	#define BG_DEBUGBREAK __debugbreak()
 #else 
 	#define BG_DEBUGBREAK __asm__ volatile("int $0x03")
 #endif
+
 
 #if BG_DEVELOPER
     #define BG_ASSERT(exp) do{if (!(exp)) { BG_DEBUGBREAK; }} while (0);
@@ -48,13 +46,27 @@
     #define BG_ASSERT(exp) 
 #endif
 
+
 #if !defined(BG_ARR_BOUNDS_CHECK)
-#if defined(BG_DEVELOPER)
-#if BG_DEVELOPER
-#define BG_ARR_BOUNDS_CHECK 1
+    #if defined(BG_DEVELOPER)
+        #if BG_DEVELOPER
+            #define BG_ARR_BOUNDS_CHECK 1
+        #endif
+    #endif
 #endif
+
+#if !defined(BG_ARR_BOUNDS_CHECK)
+    #define BG_ARR_BOUNDS_CHECK 0
 #endif
-#endif
+
+
+
+#define bg_static_assert(exp) static_assert(exp, "error") // to remove c++17 warnings
+#define bg_unused(x) ((void)(sizeof(x)))
+
+#define Kilobyte(val) ((val)*1024ll)
+#define Megabyte(val) (Kilobyte(val)*1024ll)
+#define Gigabyte(val) (Megabyte(val)*1024ll)
 
 
 // typedefs 
@@ -63,64 +75,49 @@
 #if BG_SYSTEM_WINDOWS
     typedef uint64_t u64;
     typedef  int64_t s64;
-    static_assert(sizeof(s64) == sizeof(u64));
+    bg_static_assert(sizeof(s64) == sizeof(u64));
 
     typedef uint32_t u32;
     typedef  int32_t s32;
-    static_assert(sizeof(s32) == sizeof(u32));
+    bg_static_assert(sizeof(s32) == sizeof(u32));
 
     typedef uint16_t u16;
     typedef  int16_t s16;
-    static_assert(sizeof(s16) == sizeof(u16));
+    bg_static_assert(sizeof(s16) == sizeof(u16));
 
     typedef  uint8_t s8;
     typedef   int8_t u8;
-    static_assert(sizeof(s8) == sizeof(u8));
+    bg_static_assert(sizeof(s8) == sizeof(u8));
 
-    typedef wchar_t BgUtf16;
+    #define BgUtf16 wchar_t
 #endif
 
 #if BG_SYSTEM_LINUX
     typedef unsigned long long u64;
     typedef          long long s64;
-    static_assert(sizeof(u64) == 8);
-    static_assert(sizeof(s64) == sizeof(u64));
+    bg_static_assert(sizeof(u64) == 8);
+    bg_static_assert(sizeof(s64) == sizeof(u64));
 
     typedef unsigned int u32;
     typedef          int s32;
-    static_assert(sizeof(u32) == 4);
-    static_assert(sizeof(s32) == sizeof(u32));
+    bg_static_assert(sizeof(u32) == 4);
+    bg_static_assert(sizeof(s32) == sizeof(u32));
 
     typedef unsigned short u16;
     typedef          short s16;
-    static_assert(sizeof(u16) == 2);
-    static_assert(sizeof(s16) == sizeof(u16));
+    bg_static_assert(sizeof(u16) == 2);
+    bg_static_assert(sizeof(s16) == sizeof(u16));
 
     typedef unsigned char  u8;
     typedef          char  s8;
-    static_assert(sizeof(u8) ==  1);
-    static_assert(sizeof(s8) == sizeof(u8));
+    bg_static_assert(sizeof(u8) ==  1);
+    bg_static_assert(sizeof(s8) == sizeof(u8));
 
     typedef u16 BgUtf16;
 #endif
 
-
-#if !defined(BG_ARR_BOUNDS_CHECK)
-    #define BG_ARR_BOUNDS_CHECK 0
-#endif
-
-#define bg_sizeof(x)  (u64)sizeof(x)
-#define bg_unused(x) ((void)(bg_sizeof(x)))
-
-
-#define Kilobyte(val) ((val)*1024ll)
-#define Megabyte(val) (Kilobyte(val)*1024ll)
-#define Gigabyte(val) (Megabyte(val)*1024ll)
-
 #define bg_internal      static 
 #define bg_local_persist static
-
-
 
 #if BG_SYSTEM_WINDOWS
     #define BG_DLLEXPORT     __declspec(dllexport)
@@ -140,27 +137,38 @@
     #define BG_API
 #endif
 
-#include <stdio.h>
-#if BG_SYSTEM_LINUX
-    #include <cstdlib>
+
+#if 1
+    #include <windows.h>
+    #include <stdio.h>
+    #define LOG(str, ...)          do{BG_INTERNAL_LOG(str, ## __VA_ARGS__);} while (0);
+    #define LOG_INFO(str, ...)     do{BG_INTERNAL_LOG(str, ## __VA_ARGS__);} while (0);
+    #define LOG_ERROR(str, ...)    do{BG_INTERNAL_LOG(str, ## __VA_ARGS__);} while (0);
+    #define LOG_WARNING(str, ...)  do{BG_INTERNAL_LOG(str, ## __VA_ARGS__);} while (0);    
+    #define BG_INTERNAL_LOG(str, ...) bg__log(str, ## __VA_ARGS__);
+#else
+    #include <stdio.h>
+    #define LOG(str, ...)          do{fprintf(stdout, str, ## __VA_ARGS__);} while (0);
+    #define LOG_INFO(str, ...)     do{fprintf(stdout, str, ## __VA_ARGS__);} while (0);
+    #define LOG_ERROR(str, ...)    do{fprintf(stdout, str, ## __VA_ARGS__);} while (0);
+    #define LOG_WARNING(str, ...)  do{fprintf(stdout, str, ## __VA_ARGS__);} while (0);    
 #endif
 
 
-#define LOG(str, ...)          do{char bg__bf[1024 * 4]; snprintf(bg__bf, sizeof(bg__bf), str, ##__VA_ARGS__); fprintf(stdout, "%s", bg__bf); fflush(stdout);} while (0);
-#define LOG_INFO(str, ...)     do{char bg__bf[1024 * 4]; snprintf(bg__bf, sizeof(bg__bf), str, ##__VA_ARGS__); fprintf(stdout, "%s", bg__bf); fflush(stdout);} while (0);
-#define LOG_ERROR(str, ...)    do{char bg__bf[1024 * 4]; snprintf(bg__bf, sizeof(bg__bf), str, ##__VA_ARGS__); fprintf(stdout, "%s", bg__bf); fflush(stdout);} while (0);
-#define LOG_WARNING(str, ...)  do{char bg__bf[1024 * 4]; snprintf(bg__bf, sizeof(bg__bf), str, ##__VA_ARGS__); fprintf(stdout, "%s", bg__bf); fflush(stdout);} while (0);
+void
+bg__log(const char *fmt, ...);
 
 
+#if BG_BUILD_AS_DLL
+    #include "stb_leakcheck.h"
+#endif
+
+#include <stdlib.h>
 #define bg_malloc(n)        malloc((u64)(n))
 #define bg_realloc(p, sz)   realloc((p), (u64)(sz))
 #define bg_free(p)          free((p))
-#define bg_calloc(c,s)      calloc((u64)(c), (u64)(s))
+#define bg_calloc(c,s)      (memset(bg_malloc((u64)(c) * (u64)(s)), 0, (u64)(c) * (u64)(s))) 
 
-static inline void
-bg_check_for_memory_leaks() {
-    BG_ASSERT(false);
-} 
 
 #define BG_MIN(a, b) ((a) > (b) ? (b) : (a))
 #define BG_MAX(a, b) ((a) < (b) ? (b) : (a))
@@ -169,6 +177,30 @@ bg_check_for_memory_leaks() {
 #define memory_equal(p1, p2, ps) (!!(memcmp(p1, p2, ps) == 0))
 #define zero_memory(p, size)      memset(p, 0, size)
 #define copy_memory(p1, p2, ps)   memcpy(p1, p2, ps);
+
+
+
+
+#if !defined(BG_SYSTEM_WINDOWS)
+    #define BG_SYSTEM_WINDOWS 0
+#endif
+#if !defined(BG_SYSTEM_LINUX)
+    #define BG_SYSTEM_LINUX   0
+#endif
+#if !defined(BG_SYSTEM_OSX)
+    #define BG_SYSTEM_OSX     0
+#endif
+
+#if !defined(BG_COMPILER_MSVC)
+    #define BG_COMPILER_MSVC  0
+#endif
+#if !defined(BG_COMPILER_CLANG)
+    #define BG_COMPILER_CLANG 0
+#endif
+#if !defined(BG_COMPILER_GCC)
+    #define BG_COMPILER_GCC   0
+#endif
+
 
 
 // POOL
@@ -246,12 +278,11 @@ pool_dealloc(Pool_Allocator *alloc, void *mem) {
     }
 }
 
-// #include "stb_ds.h"
-// #include "stb_sprintf.h"
+#if BG_COMPILER_MSVC
+    #pragma warning(push)
+    #pragma warning(disable : 4626)
+#endif
 
-
-#pragma warning(push)
-#pragma warning(disable : 4626)
 template <typename F>
 struct privDefer {
     F f;
@@ -263,8 +294,10 @@ template <typename F>
 privDefer<F> defer_func(F f) {
     return privDefer<F>(f);
 }
-#pragma warning(pop)
 
+#if BG_COMPILER_MSVC
+    #pragma warning(pop)
+#endif
 
 #define DEFER_1(x, y) x##y
 #define DEFER_2(x, y) DEFER_1(x, y)
@@ -275,7 +308,7 @@ privDefer<F> defer_func(F f) {
 
 template<typename T>
 struct Array {
-    T *data = 0;
+    T *data = NULL;
     u64 len = 0;
     u64 cap = 0;
     inline T &operator[](u64 i) {
@@ -342,10 +375,10 @@ arr__grow(Array<T> *arr, u64 new_cap) {
             min_cap = min_cap * 2 + 4;
     }
 
-    arr->data = (T *)bg_realloc(arr->data, min_cap * bg_sizeof(arr->data[0]));
+    arr->data = (T *)bg_realloc(arr->data, min_cap * sizeof(arr->data[0]));
     arr->cap  = min_cap;
 
-    zero_memory(arr->data + arr->len, (arr->cap - arr->len) * bg_sizeof(arr->data[0]));
+    zero_memory(arr->data + arr->len, (arr->cap - arr->len) * sizeof(arr->data[0]));
 }
 
 
@@ -374,7 +407,7 @@ template<typename T>
 T
 arrpop(Array<T> *arr) {
     if (arr->len > 0) {
-        return arr.data[--arr->len];
+        return arr->data[--arr->len];
     }
     return {};
 }
@@ -401,8 +434,28 @@ arrputnempty(Array<T> *arr, u64 count) {
 
     T *result = &arr->data[arr->len];
     arr->len += count;
-    ///zero_memory(result, count * bg_sizeof(arr->data[0]));
+    zero_memory(result, count * sizeof(arr->data[0]));
     return result;
+}
+
+template<typename T>
+void
+arrdel(Array<T> *arr, u64 indc) {
+    BG_ASSERT(indc < arr->len);
+    BG_ASSERT(indc < arr->cap);
+    
+    if (arr->len == 0)
+        return;
+    
+    if (indc == arr->len - 1) {
+        --arr->len;
+        return;
+    }
+
+    if (indc < arr->len) {
+        memmove(arr->data + indc, arr->data + indc + 1, (arr->len - indc) * sizeof(T));
+    }
+    --arr->len;
 }
 
 template<typename T>
@@ -430,7 +483,7 @@ slice_from_array(Slice<T> *slice, Array<T> const &arr) {
 // THREADING , MUTEX, LOCKS ETC 
 //
 #if BG_SYSTEM_WINDOWS
-#include <windows.h>
+    #include <windows.h>
 #endif
 
 struct Mutex {
@@ -444,6 +497,9 @@ struct Mutex {
 
 Mutex
 init_mutex();
+
+void
+free_mutex(Mutex *m);
 
 void
 lock_mutex(Mutex *mutex);
@@ -517,7 +573,7 @@ bg_random_between(Bg_Random_State *state, u64 begin, u64 end) {
 // FILE IO
 struct File_Read {
     void *data;
-    u64 len;
+    u64  len;
 };
 
 enum File_Access_Flags {
@@ -564,9 +620,22 @@ struct Async_IO_Handle {
 #endif
 };
 
+struct File_View {
+    void *data;
+    u64  size;
+};
+
+File_View
+open_file_view(const char *fn);
+
+File_View
+open_file_view(const BgUtf16 *fn);
+
+void
+close_file_view(File_View *view);
 
 #if BG_SYSTEM_WINDOWS
-#include <windows.h>
+    #include <windows.h>
 #endif
 
 static inline bool
@@ -582,23 +651,28 @@ is_file_handle_valid(File *file) {
 
 // open-create
 File
-open_file__raw(char *fn, File_Open_Flags open_type, File_Access_Flags access, File_Share_Flags share);
+open_file__raw(const char *fn, File_Open_Flags open_type, File_Access_Flags access, File_Share_Flags share);
 
 File
-open_file__raw(char *fn, File_Open_Flags open_type, File_Access_Flags access, File_Share_Flags share);
+open_file__raw(const char *fn, File_Open_Flags open_type, File_Access_Flags access, File_Share_Flags share);
 
 File
-open_file(char *fn, File_Access_Flags access = File_Access_Flags_Read_And_Write, File_Share_Flags share = File_Share_Flags_Share_Read);
+open_file(const char *fn, File_Access_Flags access = File_Access_Flags_Read_And_Write, File_Share_Flags share = File_Share_Flags_Share_Read);
 
 File
-create_file(char *fn, File_Access_Flags access = File_Access_Flags_Read_And_Write, File_Share_Flags share = File_Share_Flags_Share_Read);
+create_file(const char *fn, File_Access_Flags access = File_Access_Flags_Read_And_Write, File_Share_Flags share = File_Share_Flags_Share_Read);
+
+
+File_View
+open_file_view(const char *fn);
+
 
 #if BG_SYSTEM_WINDOWS
 File
-open_file(BgUtf16 *fn, File_Access_Flags access = File_Access_Flags_Read_And_Write, File_Share_Flags share = File_Share_Flags_Share_Read);
+open_file(const BgUtf16 *fn, File_Access_Flags access = File_Access_Flags_Read_And_Write, File_Share_Flags share = File_Share_Flags_Share_Read);
 
 File
-create_file(BgUtf16 *fn, File_Access_Flags access = File_Access_Flags_Read_And_Write, File_Share_Flags share = File_Share_Flags_Share_Read);
+create_file(const BgUtf16 *fn, File_Access_Flags access = File_Access_Flags_Read_And_Write, File_Share_Flags share = File_Share_Flags_Share_Read);
 #endif
 
 
@@ -606,7 +680,7 @@ create_file(BgUtf16 *fn, File_Access_Flags access = File_Access_Flags_Read_And_W
 s64
 get_fp(File *file);
 
-s64
+bool
 set_fp(File *file, s64 offset);
 
 
@@ -647,21 +721,27 @@ get_file_size(const char *fn);
 s64
 get_file_size(const BgUtf16 *fn);
 
+u64
+get_file_size(File *file);
+
 
 bool
-delete_file(char *fn);
+delete_file(const char *fn);
 
 bool
-delete_file(BgUtf16 *fn);
+delete_file(const BgUtf16 *fn);
 
 void
 close_file(File *file);
 
 File_Read
-read_file_all(char *fn);
+read_file_all(const char *fn);
 
 void
 free_file_read(File_Read *fr);
+
+bool 
+read_filen_last(const char *fn, void *data, u64 n);
 
 bool
 read_filen(char *fn, void *data, u64 n);
@@ -679,10 +759,10 @@ copy_file_overwrite(BgUtf16 *file, BgUtf16 *dest);
 
 
 Array<char *>
-get_file_paths_in_directory(char *dir);
+get_file_paths_in_directory(const char *dir);
 
 void
-free_filelist(Array<char *> &list);
+free_filelist(Array<char *> & list);
 
 
 
@@ -691,7 +771,7 @@ free_filelist(Array<char *> &list);
 
 
 u32
-crc32(void *memory, u64 size);
+bg_crc32(const void *memory, u64 size);
 
 
 /*
@@ -707,6 +787,7 @@ u64
 memory_needed_for_conversion(const BgUtf16 *str, u64 slen = 0);
 #endif
 
+#if BG_SYSTEM_WINDOWS
 // @@NOTE(Batuhan) those two (for now), needs external functions to operate, we 
 // dont want to pull weight of compilation to everywhere 
 BgUtf16 *
@@ -723,7 +804,7 @@ widestr_to_multibyte(const BgUtf16 *ws, char *result, u64 max_ch);
 
 BgUtf16 *
 multibyte_to_widestr(const char *s, BgUtf16 *result, u64 max_ch); 
-
+#endif
 
 
 static inline void
@@ -762,7 +843,7 @@ string_length(const char *s) {
 
 
 static inline BgUtf16 *
-get_file_name_needle(BgUtf16 *fp, BgUtf16 *end = 0) {
+path_file_name(BgUtf16 *fp, BgUtf16 *end = 0) {
 
     if (end != 0 && end < fp)
         return 0;
@@ -792,7 +873,7 @@ get_file_name_needle(BgUtf16 *fp, BgUtf16 *end = 0) {
 }
 
 static inline char *
-get_file_name_needle(char *fp, char *end = 0) {
+path_file_name(char *fp, char *end = 0) {
 
     if (end != 0 && end < fp)
         return 0;
@@ -819,6 +900,20 @@ get_file_name_needle(char *fp, char *end = 0) {
 
 
     return &base[ts_i ? ++ts_i : 0];
+}
+
+static inline char *
+path_extract_directory(char *p, char *out, u64 out_size) {
+    char *e = path_file_name(p);
+    BG_ASSERT(out_size > (u64)(e - p));
+    if (out_size > (u64)(e - p)) {
+        copy_memory(out, p, (u64)(e - p));
+        out[p - e] = '\0';
+    }
+    else {
+        out[0] = '\0';
+    }
+    return out;
 }
 
 
@@ -860,7 +955,6 @@ string_concanate(BgUtf16 *dest, u64 dest_max, BgUtf16 *lhs, u64 lhs_len, BgUtf16
 
     if (dest) {
         if (lhs_len + rhs_len > dest_max) {
-            LOG_ERROR("Unable to concanate %S and %S, buffer overrun!\n", (wchar_t*)lhs, (wchar_t*)rhs);
             return dest;
         }
         copy_memory(dest, lhs, lhs_len * 2);
@@ -897,6 +991,7 @@ string_append(char *str, const char *app, u64 strlen = 0, u64 applen = 0) {
     if (applen == 0) applen = string_length(app);
 
     copy_memory(str + strlen, app, applen);
+    str[strlen + applen] = 0;
     return strlen + applen;
 }
 
@@ -984,7 +1079,7 @@ string_to_s64(const char *str) {
 static inline char
 to_lower(char c) {
     if (c >= 'A' && c <= 'Z')
-        return ('Z' - c) + 'a';
+        return (c - 'A') + 'a';
     return c;
 }
 
@@ -1038,7 +1133,7 @@ string_equal_n(BgUtf16 *w1, BgUtf16 *w2, u64 n) {
 }
 
 static inline bool
-string_equal_ignore_case_n(BgUtf16 *s1, BgUtf16 *s2, u64 n) {
+string_equal_ignore_case_n(const BgUtf16 *s1, const BgUtf16 *s2, u64 n) {
     for (u64 i = 0; i < n; i++) {
         if (to_lower(*s1) != to_lower(*s2))
             return false;
@@ -1049,9 +1144,21 @@ string_equal_ignore_case_n(BgUtf16 *s1, BgUtf16 *s2, u64 n) {
     return true;
 }
 
+static inline bool
+string_equal_ignore_case_n(const char *s1, const char *s2, u64 n) {
+    for (u64 i = 0; i < n; i++) {
+        if (to_lower(*s1) != to_lower(*s2))
+            return false;
+        s1++; s2++;
+        if (*s1 == 0 && *s2 == 0)
+            return true;        
+    }
+    return true;
+}
+
 static inline BgUtf16 *
-string_duplicate(BgUtf16 *ws) {
-    static_assert(sizeof(BgUtf16) == 2);
+string_duplicate(const BgUtf16 *ws) {
+    bg_static_assert(sizeof(BgUtf16) == 2);
 
     u64 wlen = string_length(ws);
     BgUtf16 *result = (BgUtf16 *)bg_calloc(wlen + 1, sizeof(BgUtf16));
@@ -1060,7 +1167,7 @@ string_duplicate(BgUtf16 *ws) {
 }
 
 static inline char *
-string_duplicate(char *str) {
+string_duplicate(const char *str) {
     u64 len = string_length(str);
     char *result = (char *)bg_calloc(len + 1, 1);
     copy_memory(result, str, len);
@@ -1069,7 +1176,7 @@ string_duplicate(char *str) {
 
 static inline bool
 compare_extension(char *fp, char *ext) {
-    auto fn = get_file_name_needle(fp);
+    auto fn = path_file_name(fp);
 
     u64 slen   = string_length(fn);
     u64 extlen = string_length(ext);
@@ -1082,9 +1189,21 @@ compare_extension(char *fp, char *ext) {
 }
 
 static inline bool
+compare_extension_ignore_case(const char *fp, const char *ext) {
+    auto fn = path_file_name((char *)fp);
+    u64 slen   = string_length(fn);
+    u64 extlen = string_length(ext);
+    if (extlen > slen) {
+        return false;
+    }
+
+    return string_equal_ignore_case_n(fn + slen - extlen, ext, extlen);
+}
+
+static inline bool
 compare_extension(BgUtf16 *fp, BgUtf16 *ext) {
 
-    auto fn = get_file_name_needle(fp);
+    auto fn = path_file_name(fp);
 
     u64 slen   = string_length(fn);
     u64 extlen = string_length(ext);
@@ -1100,6 +1219,8 @@ compare_extension(BgUtf16 *fp, BgUtf16 *ext) {
     END OF BG STRING
 */
 
+//BG_H_DECLERATIONS
+#endif 
 
 
 
@@ -1119,10 +1240,28 @@ compare_extension(BgUtf16 *fp, BgUtf16 *ext) {
     #include <unistd.h>
     #include <fcntl.h>
     #include <pthread.h>
-
-    
-
 #endif
+
+void
+bg__log(const char *fmt, ...) {
+    
+    static FILE *file = fopen("narsqlguilog.txt", "ab");
+    static Mutex m = init_mutex();
+    
+    lock_mutex(&m);
+    static char buf[32 * 1024];    
+    zero_memory(buf, sizeof(buf));
+    va_list args;
+    va_start(args, fmt);
+    vsnprintf(buf, sizeof(buf), fmt, args);
+    va_end(args);
+    fwrite(buf, string_length(buf), 1, file);
+    fprintf(stdout, buf);
+    unlock_mutex(&m);
+    
+    fflush(file);
+}
+
 
 Mutex
 init_mutex() {
@@ -1137,22 +1276,36 @@ init_mutex() {
 #endif
 }
 
+void
+free_mutex(Mutex *m) {
+#if BG_SYSTEM_WINDOWS
+    DeleteCriticalSection(&m->critical_section);
+#else
+    pthread_mutex_destroy(m->m);
+#endif
+}
 
 void
 lock_mutex(Mutex *mutex) {
+    bg_unused(mutex);
+#if 1
 #if BG_SYSTEM_WINDOWS
     EnterCriticalSection(&mutex->critical_section);
 #else
     pthread_mutex_lock(&mutex->m);
 #endif
+#endif
 }
 
 void
 unlock_mutex(Mutex *mutex) {
+    bg_unused(mutex);
+#if 1
 #if BG_SYSTEM_WINDOWS
     LeaveCriticalSection(&mutex->critical_section);
 #else
     pthread_mutex_unlock(&mutex->m);
+#endif
 #endif
 }
 
@@ -1235,7 +1388,7 @@ constexpr u32 BG__CRC32_TABLE[256] = {
 
 
 u32
-crc32(void *data, u64 len) {
+bg_crc32(const void *data, u64 len) {
     u64 remaining;
     u32 result = ~((u32)0);
     u8 const *c = (u8 const *)data;
@@ -1258,33 +1411,21 @@ memory_needed_for_conversion(const char *str, u64 slen) {
 u64
 memory_needed_for_conversion(const BgUtf16 *str, u64 slen){
     if (slen == 0) slen = string_length(str) + 1;
-    int chneeded = WideCharToMultiByte(CP_UTF8, 0, (wchar_t*)str, (s32)slen, NULL, NULL, NULL, NULL);
+    int chneeded = WideCharToMultiByte(CP_UTF8, 0, (BgUtf16*)str, (s32)slen, NULL, NULL, NULL, NULL);
     BG_ASSERT(chneeded >= 0);
     return (u64)chneeded;
 }
 #endif
 
+#if BG_SYSTEM_WINDOWS
 BgUtf16 *
 multibyte_to_widestr(const char *s) {
     BgUtf16 *result = 0;
 
     int slen = (int)string_length(s) + 1;
 
-#if defined(_WIN32)
-    int chneeded = MultiByteToWideChar(CP_UTF8, 0, (LPCCH)s, slen, 0, 0);
-    BG_ASSERT(chneeded != 0);
-    //chneeded += 1;
-
-    result = (BgUtf16 *)bg_calloc(chneeded, 2);
-    BG_ASSERT(result);
-
-    int wr = MultiByteToWideChar(CP_UTF8, 0, (LPCCH)s, slen, (wchar_t *)result, chneeded);
-    BG_ASSERT(wr == chneeded);
-    bg_unused(wr); // only used in debug build, nothing to worry about 
-#else
     result = (BgUtf16 *)bg_calloc(slen + 2, 2);
-    mbstowcs((wchar_t *)result, s, slen + 2);
-#endif
+    mbstowcs((BgUtf16 *)result, s, slen + 2);
 
     return result;
 }
@@ -1295,18 +1436,8 @@ widestr_to_multibyte(const BgUtf16 *ws) {
 
     int wslen = (int)string_length(ws);
 
-#if defined(_WIN32)
-    int chneeded = WideCharToMultiByte(CP_UTF8, 0, ws, wslen, NULL, 0, NULL, NULL);
-
-    result = (char *)bg_calloc((u64)chneeded, 1);
-
-    int wr = WideCharToMultiByte(CP_UTF8, 0, ws, wslen, (LPSTR)result, chneeded, NULL, NULL);
-    BG_ASSERT(wr <= chneeded);
-    bg_unused(wr); // used only in debug build, nothing to worry about
-#else
     result = (char *)bg_calloc(wslen + 2, 1);
-    wcstombs(result, (wchar_t *)ws, wslen + 2);
-#endif
+    wcstombs(result, (BgUtf16 *)ws, wslen + 2);
 
     return result;
 }
@@ -1327,7 +1458,11 @@ widestr_to_multibyte(const BgUtf16 *ws, char *result, u64 max_size) {
     if (mn > max_size) {
         return NULL;
     }
-    size_t rv = wcstombs(result, (wchar_t *)ws, max_size);
+    size_t rv = -1;
+    // We shouldn't be using this in linux anyway
+    LOG_ERROR("utf32 to utf8 conversion not supported on linux(yet)\n");
+    BG_ASSERT(false);    
+    // wcstombs(result, (BgUtf16 *)ws, max_size);
     return rv == (size_t)-1 ? NULL : result;
 #endif
 }
@@ -1348,18 +1483,23 @@ multibyte_to_widestr(const char *s, BgUtf16 *result, u64 max_size) {
     if (mn > max_size) {
         return NULL;
     }
-    size_t rv = mbstowcs((wchar_t *)result, s, max_size/2);
+    size_t rv = -1;
+    // We shouldn't be using this in linux anyway
+    LOG_ERROR("utf32 to utf8 conversion not supported on linux(yet)\n");
+    BG_ASSERT(false);
+    // mbstowcs((BgUtf16 *)result, s, max_size/2);
     return rv == (size_t)-1 ? NULL : result;
 #endif
 }
+#endif
 
 s64
 get_fp(File *file) {
 
-#if BG_SYSTEM_WINDOWS
-    return file->cached_fp;
-    #if 0
+    if (!is_file_handle_valid(file))
+        return false;
 
+#if BG_SYSTEM_WINDOWS
     LARGE_INTEGER start  ={};
     LARGE_INTEGER result ={};
     BOOL spresult = SetFilePointerEx(file->handle, start, &result, FILE_CURRENT);
@@ -1367,22 +1507,21 @@ get_fp(File *file) {
     if (!spresult) {
         LOG_ERROR("Unable to get file pointer\n");
     }
-
     return result.QuadPart;
-    #endif
 #else
     s64 result = lseek64(file->fd, 0, SEEK_CUR);
     return result;
 #endif
 }
 
-s64
+bool
 set_fp(File *file, s64 offset) {
     
+    if (!is_file_handle_valid(file))
+        return false;
+
 #if BG_SYSTEM_WINDOWS
     file->cached_fp = offset;
-    return file->cached_fp;
-    #if 0
     LARGE_INTEGER start ={};
     start.QuadPart = offset;
     LARGE_INTEGER result ={};
@@ -1392,10 +1531,9 @@ set_fp(File *file, s64 offset) {
         LOG_ERROR("Unable to set file pointer\n");
     }
     return result.QuadPart == offset;
-    #endif
 #else
     s64 result = lseek64(file->fd, offset, SEEK_SET);
-    return result;
+    return result == offset;
 #endif
 }
 
@@ -1423,7 +1561,13 @@ write_file_async(File *file, void *data, u64 n, u64 write_offset) {
 
 IO_Result
 write__file(File *file, void *data, u64 n, s64 write_offset, Async_IO_Handle *async_handle) {
+    bg_unused(async_handle);
 #if BG_SYSTEM_WINDOWS
+    DWORD br = 0;
+    set_fp(file, write_offset);
+    WriteFile(file->handle, data, (DWORD)n, &br, NULL);
+    return br == n ? IO_Result_Done : IO_Result_Error;
+#if 0
     BG_ASSERT(n < BG_U32_MAX);
     if (n > BG_U32_MAX) {
         LOG_WARNING("Reading bigger than 4GB is not supported yet\n");
@@ -1455,6 +1599,7 @@ write__file(File *file, void *data, u64 n, s64 write_offset, Async_IO_Handle *as
 
     file->cached_fp += n;
 	return IO_Result_Done;
+#endif
 
 #else
     LOG_WARNING("Linux async io is not implemented(yet!)\n"); 
@@ -1516,6 +1661,8 @@ wait_io_completion(File *file, Async_IO_Handle *async_ctx) {
 #else
     LOG_ERROR("Wait io completion(async io in general) for linux not yep implemented\n");
     BG_ASSERT(false);
+    bg_unused(async_ctx);
+    bg_unused(file);
     return true;
 #endif
 }
@@ -1523,9 +1670,16 @@ wait_io_completion(File *file, Async_IO_Handle *async_ctx) {
 // returns true if io completed, for big io stuff it usually returns false.
 IO_Result
 read__file(File *file, void *buffer, u64 n, s64 read_offset, Async_IO_Handle *async_handle) {
-
+    if (!is_file_handle_valid(file))
+        return IO_Result_Error;
+    bg_unused(async_handle);
 #if BG_SYSTEM_WINDOWS
-
+    bg_unused(async_handle);
+    DWORD br = 0;
+    set_fp(file, read_offset);
+    ReadFile(file->handle, buffer, (DWORD)n, &br, NULL);
+    return br == n ? IO_Result_Done : IO_Result_Error;
+#if 0
     BG_ASSERT(n < BG_U32_MAX);
     if (n > BG_U32_MAX) {
         LOG_WARNING("Reading bigger than 4GB is not supported yet\n");
@@ -1553,13 +1707,13 @@ read__file(File *file, void *buffer, u64 n, s64 read_offset, Async_IO_Handle *as
 	
     file->cached_fp += n;
     return IO_Result_Pending;
-
+#endif
 #else
     s64 sfpr = set_fp(file, read_offset); 
     BG_ASSERT(sfpr == read_offset);
     LOG_WARNING("Async file read for linux not yet implemented\n");
     ssize_t rs = read(file->fd, buffer, n);
-    if (rs != n) {
+    if (rs != (s64)n) {
         LOG_ERROR("Unable to read %lld bytes, instead read %ld\n", n, rs);
         return IO_Result_Error;
     }
@@ -1595,13 +1749,15 @@ check_file_async_io(File *file, Async_IO_Handle *async_handle) {
     return IO_Result_Done;
 #else
     BG_ASSERT(false);
+    bg_unused(async_handle);
+    bg_unused(file);
     return IO_Result_Done;
 #endif
 }
 
 #if BG_SYSTEM_WINDOWS
 File
-open_file__raw(BgUtf16 *fn, File_Open_Flags open_type, File_Access_Flags access, File_Share_Flags share) {
+open_file__raw(const BgUtf16 *fn, File_Open_Flags open_type, File_Access_Flags access, File_Share_Flags share) {
 
     DWORD winapi_open = 0;
     // convert open type
@@ -1634,7 +1790,7 @@ open_file__raw(BgUtf16 *fn, File_Open_Flags open_type, File_Access_Flags access,
     }
 
     File result = {};
-    result.handle = CreateFileW(fn, winapi_access, winapi_share, 0, winapi_open, FILE_FLAG_OVERLAPPED, 0);
+    result.handle = CreateFileW(fn, winapi_access, winapi_share, 0, winapi_open, 0, 0);
     if (result.handle == INVALID_HANDLE_VALUE) {
         auto errcode = GetLastError();
         LOG_INFO("Unable to open file %S, errcode %ld, access : %ld, share : %ld, open : %ld\n", fn, errcode, winapi_access, winapi_share, winapi_open);
@@ -1645,7 +1801,7 @@ open_file__raw(BgUtf16 *fn, File_Open_Flags open_type, File_Access_Flags access,
 
 
 File
-open_file__raw(char *fn, File_Open_Flags open_type, File_Access_Flags access, File_Share_Flags share) {
+open_file__raw(const char *fn, File_Open_Flags open_type, File_Access_Flags access, File_Share_Flags share) {
     BgUtf16 *wfn = multibyte_to_widestr(fn);
     File result  = open_file__raw(wfn, open_type, access, share);
     bg_free(wfn);
@@ -1655,7 +1811,7 @@ open_file__raw(char *fn, File_Open_Flags open_type, File_Access_Flags access, Fi
 
 #if BG_SYSTEM_LINUX
 File
-open_file__raw(char *fn, File_Open_Flags open_type, File_Access_Flags access, File_Share_Flags share) {
+open_file__raw(const char *fn, File_Open_Flags open_type, File_Access_Flags access, File_Share_Flags share) {
     
     int fd    = -1;
     int flags = 0;
@@ -1701,32 +1857,84 @@ open_file__raw(char *fn, File_Open_Flags open_type, File_Access_Flags access, Fi
 
 
 File
-open_file(char *fn, File_Access_Flags access, File_Share_Flags share) {
+open_file(const char *fn, File_Access_Flags access, File_Share_Flags share) {
     return open_file__raw(fn, File_Open_Flags_Existing, access, share); 
 }
 
 File
-create_file(char *fn, File_Access_Flags access, File_Share_Flags share) {
+create_file(const char *fn, File_Access_Flags access, File_Share_Flags share) {
     return open_file__raw(fn, File_Open_Flags_New, access, share);
 }
 
 
 #if BG_SYSTEM_WINDOWS
 File
-create_file(BgUtf16 *fn, File_Access_Flags access, File_Share_Flags share) {
+create_file(const BgUtf16 *fn, File_Access_Flags access, File_Share_Flags share) {
     return open_file__raw(fn, File_Open_Flags_Existing, access, share);
 }
 
 File
-open_file(BgUtf16 *fn, File_Access_Flags access, File_Share_Flags share) {
+open_file(const BgUtf16 *fn, File_Access_Flags access, File_Share_Flags share) {
     return open_file__raw(fn, File_Open_Flags_Existing, access, share); 
 }
 #endif
 
 
+#if BG_SYSTEM_WINDOWS
+File_View
+open_file_view(const char *fn) {
+    // for small strings, don't heap allocate
+    u64 slen = string_length(fn);
+    if (slen < 256) {
+        BgUtf16 wfn[256];
+        zero_memory(wfn, sizeof(wfn));
+        BgUtf16 *t = multibyte_to_widestr(fn, wfn, sizeof(wfn));
+        BG_ASSERT(t);
+        return open_file_view(wfn);
+    }
+    else {
+        BgUtf16 *wfn = multibyte_to_widestr(fn);
+        File_View result = open_file_view(wfn);
+        bg_free(wfn);        
+        return result;
+    }
+}
+
+File_View
+open_file_view(const BgUtf16 *fn) {
+    File_View result = {};
+    HANDLE fhandle = CreateFileW(fn, GENERIC_READ, FILE_SHARE_READ, 0, OPEN_ALWAYS, 0, 0);
+    if (fhandle != INVALID_HANDLE_VALUE) {
+        HANDLE mhandle = CreateFileMappingW(fhandle, NULL, PAGE_READONLY, 0, 0, 0);
+        if (mhandle != INVALID_HANDLE_VALUE) {
+            LARGE_INTEGER li = {};
+            GetFileSizeEx(fhandle, &li);
+
+            result.data = MapViewOfFile(mhandle, FILE_MAP_READ, 0, 0, 0);
+            result.size = li.QuadPart;
+            CloseHandle(mhandle);
+        }   
+        else {
+
+        } 
+        CloseHandle(fhandle);
+    }
+    else {
+
+    }
+
+    return result;
+}
+
+void
+close_file_view(File_View *view) {
+    UnmapViewOfFile(view->data);
+}
+#endif
+
 
 bool
-delete_file(char *fn) {
+delete_file(const char *fn) {
 #if BG_SYSTEM_WINDOWS
     BOOL winapi_result = DeleteFileA(fn);
     if (winapi_result == 0) {
@@ -1767,7 +1975,7 @@ delete_file(char *fn) {
 
 #if BG_SYSTEM_WINDOWS
 bool
-delete_file(BgUtf16 *fn) {
+delete_file(const BgUtf16 *fn) {
 
     BOOL winapi_result = DeleteFileW(fn);
     if (winapi_result == 0) {
@@ -1800,7 +2008,7 @@ get_file_size(const char *fn) {
 #else
 
     int flags = O_RDONLY;
-    int mode  = 0;
+    // int mode  = 0;
     int fd = open(fn, flags);
     defer({close(fd);});
     LOG_INFO("FD : %d, fn : %s\n", fd, fn);
@@ -1838,6 +2046,25 @@ get_file_size(const BgUtf16 *fn) {
 }
 #endif
 
+
+u64
+get_file_size(File *file) {
+#if BG_SYSTEM_WINDOWS
+    LARGE_INTEGER li = {};
+    auto gfr = GetFileSizeEx(file->handle, &li);
+    BG_ASSERT(gfr != 0);
+    bg_unused(gfr);
+    return (u64)li.QuadPart;
+#else
+    s64 cur = lseek64(file->fd, 0, SEEK_CUR);
+    s64 r   = lseek64(file->fd, 0, SEEK_END);
+    s64 rr  = lseek64(file->fd, 0, SEEK_SET);
+    BG_ASSERT(rr == cur);
+    return r;
+#endif
+}
+
+
 void
 close_file(File *file) {
 #if BG_SYSTEM_WINDOWS
@@ -1852,60 +2079,28 @@ close_file(File *file) {
 
 
 File_Read
-read_file_all(char *fn) {
-#if BG_SYSTEM_WINDOWS
+read_file_all(const char *fn) {
 
-    File_Read result ={};
-    HANDLE file = CreateFileA(fn, GENERIC_READ, 0, 0, OPEN_EXISTING, FILE_FLAG_OVERLAPPED, 0);
-    defer({ CloseHandle(file); });
+    File_Read result = {};    
+    File file = open_file(fn);
 
-    BG_ASSERT(file != INVALID_HANDLE_VALUE);
-
-    if (file != INVALID_HANDLE_VALUE) {
-        DWORD BytesRead = 0;
-        result.len = (u64)GetFileSize(file, 0); // safe to assume file size < 2 GB
-        if (result.len == 0) return result;
-        result.data = bg_malloc((u64)result.len);
-        BG_ASSERT(result.data);
-        if (result.data) {
-            if (ReadFile(file, result.data, (DWORD)result.len, &BytesRead, 0) && BytesRead == (DWORD)result.len) {
-                // @NOTE success
-            }
-            else {
-                LOG_WARNING("Unable to read %llu bytes from file %s, instead read %lu\n", result.len, fn, BytesRead);
-                bg_free(result.data);
-            }
+    if (is_file_handle_valid(&file)) {
+        result.len = get_file_size(&file);
+        if (result.len > 0) {
+            result.data = bg_malloc(result.len);
         }
-        else {
-            LOG_WARNING("Unable to allocate memory for read_file_all(fn : %s) size %llu\n", fn, result.len);
-        }
-    }
-    else {
-        LOG_WARNING("Can't create file: %s\n", fn);
-    }
 
-    return result;
-#else
-    
-    File_Read result = {};
-    s64 fs = get_file_size(fn);
-    if (fs) {
-        result.data = bg_malloc(fs);
-        result.len  = fs;
-        if (read_filen(fn, result.data, result.len)) {
-            // success
-        }
-        else {
-            LOG_ERROR("Unable to read entire contents of file %s\n", fn);
+        set_fp(&file, 0);
+        bool rfr = read_file(&file, result.data, result.len);
+        if (!rfr) { 
+            LOG_ERROR("Unable to read %llu bytes from file %s\n", result.len, fn);
             bg_free(result.data);
-            result.data = 0;
-            result.len  = 0;
+            result = {};
         }
-
     }
 
+    close_file(&file);
     return result;
-#endif
 }
 
 void
@@ -1915,81 +2110,47 @@ free_file_read(File_Read *fr) {
     fr->data = 0;
 }
 
+
+bool 
+read_filen_last(const char *fn, void *data, u64 n) {
+    auto file      = open_file(fn);
+    if (!is_file_handle_valid(&file))
+        return false;
+    defer({ close_file(&file); });
+
+    auto file_size = get_file_size(&file);
+    if (file_size < n) 
+        return false;
+
+    set_fp(&file, file_size - n);
+    bool rfr = read_file(&file, data, n);
+    return rfr;
+}
+
 bool
 read_filen(char *fn, void *data, u64 n) {
     BG_ASSERT(n < Gigabyte(2));
-
-#if BG_SYSTEM_WINDOWS
-
-    HANDLE file = CreateFileA(fn, GENERIC_READ, 0, 0, OPEN_EXISTING, 0, 0);
-    defer({ CloseHandle(file); });
-    BG_ASSERT(file != INVALID_HANDLE_VALUE);
-
-    if (file != INVALID_HANDLE_VALUE) {
-        DWORD br = 0;
-        if (ReadFile(file, data, (DWORD)n, &br, 0) && br == n) {
-            return true;
-        }
-        else {
-            LOG_ERROR("Unable to read %zd bytes from file %s\n", n, fn);
-        }
-    }
-    else {
-        LOG_ERROR("Can't open file %s to read %zd bytes\n", fn, n);
-    }
-
-    return false;
-#else
-    
-    if (n == 0) {
+    if (n == 0)
         return true;
-    }
 
-    int mode  = 0;
-    int flags = O_RDONLY;
-    errno = 0;
-    int fd = open(fn, flags);
-    defer({close(fd);});
-    if (fd != -1) {
-        int rs = read(fd, data, n);
-        if (rs == n) {
-            return true;
-        }
-        else {
-            LOG_ERROR("Unable to read %lld bytes from file %s, instead read %d, errno %d\n", n, fn, rs, errno);
-        }
+    File file = open_file(fn);
+    bool rfr  = read_file(&file, data, n);
+    if (!rfr) {
+        LOG_ERROR("Unable to read %lld bytes from file %s\n", n, fn);
     }
-    else {
-        LOG_ERROR("Can't open file %s to read %lld bytes, errno %d\n", fn, n, errno);
-    }
-
-    return false;
-#endif
+    close_file(&file);
+    return rfr;
 }
 
 bool
 dump_file(char *fn, void *d, u64 n) {
-#if BG_SYSTEM_WINDOWS
-    HANDLE file = CreateFileA(fn, GENERIC_WRITE, 0, 0, CREATE_NEW, 0, 0);
-    BG_ASSERT(file != INVALID_HANDLE_VALUE);
-    DWORD br = 0;
-
-    if (WriteFile(file, d, (DWORD)n, &br, 0) && br == n) {
-
+    auto file = create_file(fn);
+    bool wfr = write_file(&file, d, n);
+    if (!wfr) {
+        LOG_ERROR("Unable to dump contents to file %s\n", fn);
     }
-    else {
-        LOG_ERROR("Unable to dump memory(0x%p : %zd) to file %s\n", d, n, fn);
-    }
-    CloseHandle(file);
-    return br == n;
-#else
-
-    File file   = open_file__raw(fn, File_Open_Flags_New, File_Access_Flags_Read_And_Write, File_Share_Flags_Share_None);
-    bool result = write_file(&file, d, n);
     close_file(&file);
-
-    return result;
-#endif
+    return wfr;
 }
 
 #if BG_SYSTEM_WINDOWS
@@ -2000,12 +2161,12 @@ copy_file_overwrite(char *file, char *dest) {
 
 bool
 copy_file_overwrite(BgUtf16 *file, BgUtf16 *dest) {
-    return CopyFileW((wchar_t *)file, dest, true);
+    return CopyFileW((BgUtf16 *)file, dest, true);
 }
 #endif
 
 Array<char *>
-get_file_paths_in_directory(char *dir) {
+get_file_paths_in_directory(const char *dir) {
 #if defined(_WIN32)
 
     char wildcard_dir[280] ={};
@@ -2059,6 +2220,7 @@ get_file_paths_in_directory(char *dir) {
     return result;
 #else 
     // linux
+    bg_unused(dir);
     BG_ASSERT(false);
     return {};
 #endif
@@ -2066,9 +2228,10 @@ get_file_paths_in_directory(char *dir) {
 
 void
 free_filelist(Array<char *> &list) {
-    arrfree(&list);
+    for_array (i, list) {
+        bg_free(list[i]);        
+    } arrfree(&list);
 }
 
-
-
 #endif
+
