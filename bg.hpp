@@ -40,12 +40,6 @@
 #endif
 
 
-#if BG_DEVELOPER
-    #define BG_ASSERT(exp) do{if (!(exp)) { BG_DEBUGBREAK; }} while (0);
-#else
-    #define BG_ASSERT(exp) 
-#endif
-
 
 #if !defined(BG_ARR_BOUNDS_CHECK)
     #if defined(BG_DEVELOPER)
@@ -139,13 +133,12 @@
 
 
 #if 1
-    #include <windows.h>
     #include <stdio.h>
-    #define LOG(str, ...)          do{BG_INTERNAL_LOG(str, ## __VA_ARGS__);} while (0);
-    #define LOG_INFO(str, ...)     do{BG_INTERNAL_LOG(str, ## __VA_ARGS__);} while (0);
-    #define LOG_ERROR(str, ...)    do{BG_INTERNAL_LOG(str, ## __VA_ARGS__);} while (0);
-    #define LOG_WARNING(str, ...)  do{BG_INTERNAL_LOG(str, ## __VA_ARGS__);} while (0);    
-    #define BG_INTERNAL_LOG(str, ...) bg__log(str, ## __VA_ARGS__);
+    #define LOG(str, ...)          do{BG_INTERNAL_LOG("INFO"   , str, ## __VA_ARGS__);} while (0);
+    #define LOG_INFO(str, ...)     do{BG_INTERNAL_LOG("INFO"   , str, ## __VA_ARGS__);} while (0);
+    #define LOG_ERROR(str, ...)    do{BG_INTERNAL_LOG("ERROR"  , str, ## __VA_ARGS__);} while (0);
+    #define LOG_WARNING(str, ...)  do{BG_INTERNAL_LOG("WARNING", str, ## __VA_ARGS__);} while (0);    
+    #define BG_INTERNAL_LOG(prefix, str, ...) bg__log(prefix, str, ## __VA_ARGS__);
 #else
     #include <stdio.h>
     #define LOG(str, ...)          do{fprintf(stdout, str, ## __VA_ARGS__);} while (0);
@@ -155,16 +148,29 @@
 #endif
 
 
+
+#if BG_DEVELOPER
+    #if BG_COMPILER_MSVC
+        #define BG_ASSERT(exp) do{if (!(exp)) { LOG_ERROR("ASSERTION FAILED : \n\tFile : " __FILE__ "\n\tFunction : " __FUNCSIG__ "\n\tLine %d\n\tExpression : " #exp "\n", __LINE__); BG_DEBUGBREAK; }} while(0);
+    #else
+        #define BG_ASSERT(exp) do{if (!(exp)) { BG_DEBUGBREAK; }} while(0);
+    #endif
+#else
+    #define BG_ASSERT(exp) 
+#endif
+
+
+
 void
-bg__log(const char *fmt, ...);
+bg__log(const char *prefix, const char *fmt, ...);
 
 
 #if BG_BUILD_AS_DLL
-    #include "stb_leakcheck.h"
+    // #include "stb_leakcheck.h"
 #endif
 
 #include <stdlib.h>
-#define bg_malloc(n)        malloc((u64)(n))
+#define bg_malloc(n)        (n ? malloc((u64)(n)) : NULL)
 #define bg_realloc(p, sz)   realloc((p), (u64)(sz))
 #define bg_free(p)          free((p))
 #define bg_calloc(c,s)      (memset(bg_malloc((u64)(c) * (u64)(s)), 0, (u64)(c) * (u64)(s))) 
@@ -278,10 +284,33 @@ pool_dealloc(Pool_Allocator *alloc, void *mem) {
     }
 }
 
+
+// BG DATE
+struct Bg_Date {
+    u16 year;
+    u16 month;
+    u16 day;
+    u16 hour;
+    u16 minute;
+    u16 second;
+    u16 millisecond;
+};
+
+
+Bg_Date
+get_local_date();
+
+Bg_Date
+get_utc_date();
+
+
+
 #if BG_COMPILER_MSVC
     #pragma warning(push)
     #pragma warning(disable : 4626)
 #endif
+
+
 
 template <typename F>
 struct privDefer {
@@ -305,6 +334,8 @@ privDefer<F> defer_func(F f) {
 #define defer(code)   auto DEFER_3(_defer_) = defer_func([&]() {code;})
 
 #define for_array(_index, array) for (u64 _index = 0; _index < (array).len; (_index)++)
+#define for_array_it(it, arr) for (auto it = &((arr).data[0]); it != (&((arr).data[0]) + (arr).len); ++it)
+#define for_n(_index, _ceil) for (u64 _index = 0; _index < _ceil; ++(_index)) 
 
 template<typename T>
 struct Array {
@@ -349,6 +380,10 @@ template<typename T>
 void
 arr__grow(Array<T> *arr, u64 new_cap);
 
+template<typename T>
+T *
+arrputptr(Array<T> *arr);
+
 
 template<typename T>
 void
@@ -362,7 +397,7 @@ arrinit(Array<T> *arr, u64 cap) {
 template<typename T>
 void
 arr__grow(Array<T> *arr, u64 new_cap) {
-    if (arr->cap > new_cap)
+    if (arr->cap >= new_cap)
         return;
 
     u64 min_cap = 0;
@@ -416,6 +451,7 @@ template<typename T>
 void
 arrfree(Array<T> *arr) {
     bg_free(arr->data);
+    arr->data = 0;
     arr->len = 0;
     arr->cap = 0;
 }
@@ -435,6 +471,15 @@ arrputnempty(Array<T> *arr, u64 count) {
     T *result = &arr->data[arr->len];
     arr->len += count;
     zero_memory(result, count * sizeof(arr->data[0]));
+    return result;
+}
+
+template<typename T>
+T *
+arrputptr(Array<T> *arr) {
+    T *result = NULL;
+    arrputnempty(arr, 1);
+    result = &arr->data[arr->len - 1];
     return result;
 }
 
@@ -843,13 +888,13 @@ string_length(const char *s) {
 
 
 static inline BgUtf16 *
-path_file_name(BgUtf16 *fp, BgUtf16 *end = 0) {
+path_file_name(const BgUtf16 *fp, BgUtf16 *end = 0) {
 
     if (end != 0 && end < fp)
         return 0;
 
     u64 ts_i = 0;
-    BgUtf16 *base = fp;
+    const BgUtf16 *base = fp;
     BG_ASSERT(fp);
 
     if (end == 0) {
@@ -863,23 +908,23 @@ path_file_name(BgUtf16 *fp, BgUtf16 *end = 0) {
     else {
         for (fp = --end; fp != base; fp--) {
             if (*fp == L'\\' || *fp == L'/') {
-                return ++fp;
+                return (BgUtf16 *)(++fp);
             }
         }
     }
 
 
-    return &base[ts_i ? ++ts_i : 0];
+    return (BgUtf16 *)&base[ts_i ? ++ts_i : 0];
 }
 
 static inline char *
-path_file_name(char *fp, char *end = 0) {
+path_file_name(const char *fp, char *end = 0) {
 
     if (end != 0 && end < fp)
         return 0;
     //[a-z] \*[a-z]
     s64 ts_i = 0;
-    char *base = fp;
+    const char *base = fp;
     BG_ASSERT(fp);
 
     if (end == 0) {
@@ -893,17 +938,17 @@ path_file_name(char *fp, char *end = 0) {
     else {
         for (fp = --end; fp != base; fp--) {
             if (*fp == '\\' || *fp == '/') {
-                return ++fp;
+                return (char *)(++fp);
             }
         }
     }
 
 
-    return &base[ts_i ? ++ts_i : 0];
+    return (char *)&base[ts_i ? ++ts_i : 0];
 }
 
 static inline char *
-path_extract_directory(char *p, char *out, u64 out_size) {
+path_extract_directory(const char *p, char *out, u64 out_size) {
     char *e = path_file_name(p);
     BG_ASSERT(out_size > (u64)(e - p));
     if (out_size > (u64)(e - p)) {
@@ -915,6 +960,20 @@ path_extract_directory(char *p, char *out, u64 out_size) {
     }
     return out;
 }
+
+static inline BgUtf16 *
+path_extract_directory(const BgUtf16 *p, BgUtf16 *out, u64 out_size) {
+    BgUtf16 *e = path_file_name(p);
+    BG_ASSERT(out_size > (u64)(e - p) * 2);
+    if (out_size > (u64)(e - p) * 2) {
+        copy_memory(out, p, (u64)(e - p) * 2);
+        out[p - e] = '\0';
+    }
+    else {
+        out[0] = '\0';
+    }
+    return out;
+} 
 
 
 static inline u64
@@ -991,6 +1050,16 @@ string_append(char *str, const char *app, u64 strlen = 0, u64 applen = 0) {
     if (applen == 0) applen = string_length(app);
 
     copy_memory(str + strlen, app, applen);
+    str[strlen + applen] = 0;
+    return strlen + applen;
+}
+
+static inline u64
+string_append(BgUtf16 *str, const BgUtf16 *app, u64 strlen = 0, u64 applen = 0) {
+    if (strlen == 0) strlen = string_length(str);
+    if (applen == 0) applen = string_length(app);
+
+    copy_memory(str + strlen, app, applen * 2);
     str[strlen + applen] = 0;
     return strlen + applen;
 }
@@ -1117,6 +1186,21 @@ string_equal(BgUtf16 *w1, BgUtf16 *w2) {
     }
 }
 
+static inline char *
+string_rfind_char(char *str, char n) {
+    if (!str)
+        return NULL;
+
+    u64 sl = string_length(str);
+    
+    for (s64 i = sl - 1; i >= 0; --i) {
+        if (str[i] == n)
+            return &str[i];
+    }
+
+    return NULL;
+}
+
 
 static inline bool
 string_equal_n(BgUtf16 *w1, BgUtf16 *w2, u64 n) {
@@ -1156,8 +1240,35 @@ string_equal_ignore_case_n(const char *s1, const char *s2, u64 n) {
     return true;
 }
 
+static inline bool
+string_equal_ignore_case(const char *s1, const char *s2) {
+    for (;;) {
+        if (to_lower(*s1) != to_lower(*s2))
+            return false;
+
+        s1++; s2++;
+        if (*s1 == 0 && *s2 == 0)
+            return true;
+    }
+}
+
+static inline bool
+string_equal_ignore_case(const BgUtf16 *s1, const BgUtf16 *s2) {
+    for (;;) {
+        if (to_lower(*s1) != to_lower(*s2)) 
+            return false;
+
+        ++s1; ++s2;
+        if (*s1 == 0 && *s2 == 0)
+            return true;
+    }
+} 
+
 static inline BgUtf16 *
 string_duplicate(const BgUtf16 *ws) {
+    if (ws == NULL)
+        return NULL;
+    
     bg_static_assert(sizeof(BgUtf16) == 2);
 
     u64 wlen = string_length(ws);
@@ -1168,6 +1279,9 @@ string_duplicate(const BgUtf16 *ws) {
 
 static inline char *
 string_duplicate(const char *str) {
+    if (str == NULL)
+        return NULL;
+
     u64 len = string_length(str);
     char *result = (char *)bg_calloc(len + 1, 1);
     copy_memory(result, str, len);
@@ -1176,6 +1290,9 @@ string_duplicate(const char *str) {
 
 static inline bool
 compare_extension(char *fp, char *ext) {
+    if (fp == NULL || ext == NULL)
+        return false;
+
     auto fn = path_file_name(fp);
 
     u64 slen   = string_length(fn);
@@ -1190,20 +1307,38 @@ compare_extension(char *fp, char *ext) {
 
 static inline bool
 compare_extension_ignore_case(const char *fp, const char *ext) {
+    if (fp == NULL || ext == NULL) 
+        return false;
+    
     auto fn = path_file_name((char *)fp);
     u64 slen   = string_length(fn);
     u64 extlen = string_length(ext);
-    if (extlen > slen) {
+    if (extlen > slen) 
         return false;
-    }
 
     return string_equal_ignore_case_n(fn + slen - extlen, ext, extlen);
 }
 
 static inline bool
-compare_extension(BgUtf16 *fp, BgUtf16 *ext) {
+compare_extension_ignore_case(const BgUtf16 *fp, const BgUtf16 *ext) {
+    if (fp == NULL || ext == NULL)
+        return false;
 
-    auto fn = path_file_name(fp);
+    auto fn = path_file_name((BgUtf16 *)fp);
+    u64 slen   = string_length(fn);
+    u64 extlen = string_length(ext);
+    if (extlen > slen) 
+        return false;
+
+    return string_equal_ignore_case_n(fn + slen - extlen, ext, extlen);    
+}
+
+static inline bool
+compare_extension(const BgUtf16 *fp, const BgUtf16 *ext) {
+    if (fp == NULL || ext == NULL)
+        return false;
+
+    auto fn = path_file_name((BgUtf16 *)fp);
 
     u64 slen   = string_length(fn);
     u64 extlen = string_length(ext);
@@ -1243,24 +1378,94 @@ compare_extension(BgUtf16 *fp, BgUtf16 *ext) {
 #endif
 
 void
-bg__log(const char *fmt, ...) {
+bg__log(const char *log_prefix, const char *fmt, ...) {
     
     static FILE *file = fopen("narsqlguilog.txt", "ab");
     static Mutex m = init_mutex();
     
     lock_mutex(&m);
-    static char buf[32 * 1024];    
-    zero_memory(buf, sizeof(buf));
-    va_list args;
-    va_start(args, fmt);
-    vsnprintf(buf, sizeof(buf), fmt, args);
-    va_end(args);
-    fwrite(buf, string_length(buf), 1, file);
-    fprintf(stdout, buf);
+    {
+        static char buf[32 * 1024];
+        zero_memory(buf, sizeof(buf));
+        
+        Bg_Date cd = get_local_date();
+        // prefix size
+        s32 ps = 0;
+        // total buffer written size
+        s32 bs = 0;
+
+        // [dd:mm:yyyy - hh:mm:ss:msms]
+        ps += snprintf(buf, sizeof(buf), "[%02d/%02d/%04d - %02d:%02d:%02d:%04d] | ", cd.day, cd.month, cd.year, cd.hour, cd.minute, cd.second, cd.millisecond);
+
+        // ERROR
+        // WARNING
+        // INFO
+        ps += snprintf(buf + ps, sizeof(buf) - ps, "(%-10s) : ", log_prefix); 
+
+        // actual user input
+        {
+            va_list args;
+            va_start(args, fmt);
+            bs += vsnprintf(buf + ps, sizeof(buf) - ps, fmt, args);
+            va_end(args);
+        }
+        bs += ps;
+
+
+        // append newline if user didnt provide.
+        if (buf[bs - 1] != '\n')
+            buf[bs++] = '\n';
+
+
+        fwrite(buf, bs, 1, file);
+
+        
+#if BG_DEVELOPER
+        fprintf(stdout, "%s", buf);
+#endif
+
+
+    }
     unlock_mutex(&m);
     
     fflush(file);
 }
+
+
+#if BG_SYSTEM_WINDOWS
+
+Bg_Date
+systemtime_to_bg_date(SYSTEMTIME *w_time) {
+    Bg_Date result;
+    result.year        = w_time->wYear;
+    result.month       = w_time->wMonth;
+    result.day         = w_time->wDay;
+    result.hour        = w_time->wHour;
+    result.minute      = w_time->wMinute;
+    result.second      = w_time->wSecond;
+    result.millisecond = w_time->wMilliseconds;
+    return result;
+}
+
+Bg_Date
+get_local_date() {
+    SYSTEMTIME w_time;
+    GetLocalTime(&w_time);
+    return systemtime_to_bg_date(&w_time);
+}
+
+Bg_Date 
+get_utc_date() {
+    SYSTEMTIME w_time;
+    GetSystemTime(&w_time);
+    return systemtime_to_bg_date(&w_time);
+}
+
+#else
+#error implement time in linux
+#endif
+
+
 
 
 Mutex
@@ -1281,31 +1486,27 @@ free_mutex(Mutex *m) {
 #if BG_SYSTEM_WINDOWS
     DeleteCriticalSection(&m->critical_section);
 #else
-    pthread_mutex_destroy(m->m);
+    pthread_mutex_destroy(&m->m);
 #endif
 }
 
 void
 lock_mutex(Mutex *mutex) {
     bg_unused(mutex);
-#if 1
 #if BG_SYSTEM_WINDOWS
     EnterCriticalSection(&mutex->critical_section);
 #else
     pthread_mutex_lock(&mutex->m);
-#endif
 #endif
 }
 
 void
 unlock_mutex(Mutex *mutex) {
     bg_unused(mutex);
-#if 1
 #if BG_SYSTEM_WINDOWS
     LeaveCriticalSection(&mutex->critical_section);
 #else
     pthread_mutex_unlock(&mutex->m);
-#endif
 #endif
 }
 
@@ -1565,8 +1766,14 @@ write__file(File *file, void *data, u64 n, s64 write_offset, Async_IO_Handle *as
 #if BG_SYSTEM_WINDOWS
     DWORD br = 0;
     set_fp(file, write_offset);
-    WriteFile(file->handle, data, (DWORD)n, &br, NULL);
-    return br == n ? IO_Result_Done : IO_Result_Error;
+    BOOL wfr = WriteFile(file->handle, data, (DWORD)n, &br, NULL);
+    if (wfr && br == n) {
+        return IO_Result_Done;
+    }
+    else {
+        LOG_ERROR("WriteFile failed, last error code %d, tried to write %lld bytes, instead, written %d", GetLastError(), n, br);
+        return IO_Result_Error;
+    }
 #if 0
     BG_ASSERT(n < BG_U32_MAX);
     if (n > BG_U32_MAX) {
@@ -1888,8 +2095,7 @@ open_file_view(const char *fn) {
     if (slen < 256) {
         BgUtf16 wfn[256];
         zero_memory(wfn, sizeof(wfn));
-        BgUtf16 *t = multibyte_to_widestr(fn, wfn, sizeof(wfn));
-        BG_ASSERT(t);
+        multibyte_to_widestr(fn, wfn, sizeof(wfn));
         return open_file_view(wfn);
     }
     else {
@@ -2029,7 +2235,6 @@ s64
 get_file_size(const BgUtf16 *fn) {
     s64 result = 0;
     HANDLE file = CreateFileW(fn, FILE_GENERIC_READ, FILE_SHARE_WRITE | FILE_SHARE_READ | FILE_SHARE_DELETE, 0, OPEN_EXISTING, FILE_ATTRIBUTE_READONLY, 0);
-    BG_ASSERT(file != INVALID_HANDLE_VALUE);
     if (file != INVALID_HANDLE_VALUE) {
         LARGE_INTEGER fsli ={};
         BOOL winapiresult  = GetFileSizeEx(file, &fsli);
