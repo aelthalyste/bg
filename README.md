@@ -9,3 +9,4 @@ personal, platform-free c++ standard library
  - platform-compiler detection macros that isn't cryptic. (BG_SYSTEM_WINDOWS, BG_COMPILER_MSVC etc)
  - lots of utility macros. (LOG_.., zero_memory, for_array)
  - platform filesystem interactions(delete, copy, list all files etc)
+ - easy to use iterators for arrays and scopes
